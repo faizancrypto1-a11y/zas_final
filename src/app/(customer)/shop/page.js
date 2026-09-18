@@ -265,7 +265,7 @@ const ShopContent = () => {
         <h4 className="filter-section-title">Sports Category</h4>
         <div className="filter-checkbox-list">
           {categories.map(cat => (
-            <label key={cat._id} className="filter-checkbox-item">
+            <label key={cat.id || cat._id || cat.slug} className="filter-checkbox-item">
               <input 
                 type="checkbox" 
                 checked={categoryParam === cat.slug}

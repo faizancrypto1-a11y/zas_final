@@ -3,11 +3,40 @@ import { revalidateTag } from 'next/cache';
 import { prisma } from 'src/lib/prisma';
 import { verifyAdmin } from 'src/lib/auth';
 import { getPublicCategories, CACHE_TAGS } from 'src/lib/storeData';
+import { HEADER_CATEGORIES } from 'src/lib/categories';
+
+async function ensureCanonicalCategories() {
+  try {
+    const existing = await prisma.category.findMany({ select: { slug: true } });
+    const existingSlugs = new Set(existing.map(c => c.slug));
+    const missing = HEADER_CATEGORIES.filter(c => !existingSlugs.has(c.slug));
+
+    if (missing.length > 0) {
+      for (const cat of missing) {
+        await prisma.category.create({
+          data: {
+            name: cat.name,
+            slug: cat.slug,
+            displayOrder: cat.displayOrder,
+            isActive: true
+          }
+        }).catch(err => {
+          console.warn(`Category creation note for ${cat.slug}:`, err?.message);
+        });
+      }
+      revalidateTag(CACHE_TAGS.categories);
+    }
+  } catch (err) {
+    console.warn('ensureCanonicalCategories error:', err?.message);
+  }
+}
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const isAdminView = searchParams.get('adminView') === 'true';
+
+    await ensureCanonicalCategories();
 
     if (isAdminView) {
       if (!verifyAdmin(request)) {

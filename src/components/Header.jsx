@@ -14,6 +14,7 @@ import {
   Menu
 } from 'lucide-react';
 import { useAuth, useCommerce, useConfig, useSearch } from 'src/context/StoreContext';
+import { HEADER_CATEGORIES } from 'src/lib/categories';
 
 const Header = () => {
   const router = useRouter();
@@ -50,6 +51,11 @@ const Header = () => {
   const activeCategories = useMemo(
     () => categories.filter(c => c.isActive),
     [categories]
+  );
+
+  const displayCategories = useMemo(
+    () => (activeCategories.length > 0 ? activeCategories : HEADER_CATEGORIES),
+    [activeCategories]
   );
 
   return (
@@ -206,66 +212,13 @@ const Header = () => {
         <nav className="nav-bar desktop-only-flex">
           <div className="container">
             <ul className="nav-links">
-              <li className="nav-item">
-                <Link href="/shop?category=cricket-bats" className="nav-link">Cricket Bats</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=cricket-balls" className="nav-link">Cricket Balls</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=cricket-gloves" className="nav-link">Cricket Gloves</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=cricket-pads" className="nav-link">Cricket Pads</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=cricket-helmets" className="nav-link">Cricket Helmets</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=running-shoes" className="nav-link">Running Shoes</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=cricket-shoes" className="nav-link">Cricket Shoes</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=dry-fit-t-shirts" className="nav-link">Dry-Fit T-Shirts</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=track-pants" className="nav-link">Track Pants</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=sports-socks" className="nav-link">Sports Socks</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=badminton-rackets" className="nav-link">Badminton Rackets</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=shuttlecocks" className="nav-link">Shuttlecocks</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=footballs" className="nav-link">Footballs</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=football-shoes" className="nav-link">Football Shoes</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=yoga-mats" className="nav-link">Yoga Mats</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=skipping-ropes" className="nav-link">Skipping Ropes</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=resistance-bands" className="nav-link">Resistance Bands</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=dumbbells" className="nav-link">Dumbbells</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=gym-gloves" className="nav-link">Gym Gloves</Link>
-              </li>
-              <li className="nav-item">
-                <Link href="/shop?category=kit-bags" className="nav-link">Kit Bags</Link>
-              </li>
+              {displayCategories.map((cat) => (
+                <li key={cat.id || cat._id || cat.slug} className="nav-item">
+                  <Link href={`/shop?category=${cat.slug}`} className="nav-link">
+                    {cat.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
         </nav>
@@ -313,8 +266,8 @@ const Header = () => {
                       All Sports Catalog
                     </Link>
                   </li>
-                  {activeCategories.map(cat => (
-                    <li key={cat._id}>
+                  {displayCategories.map(cat => (
+                    <li key={cat.id || cat._id || cat.slug}>
                       <Link href={`/shop?category=${cat.slug}`} onClick={() => setShowMobileMenu(false)}>
                         {cat.name}
                       </Link>
@@ -328,17 +281,17 @@ const Header = () => {
                 <ul className="drawer-menu-links">
                   <li>
                     <Link href="/shop?ageGroup=Men" onClick={() => setShowMobileMenu(false)}>
-                      Men's Section
+                      Men&apos;s Section
                     </Link>
                   </li>
                   <li>
                     <Link href="/shop?ageGroup=Women" onClick={() => setShowMobileMenu(false)}>
-                      Women's Section
+                      Women&apos;s Section
                     </Link>
                   </li>
                   <li>
                     <Link href="/shop?ageGroup=Kids" onClick={() => setShowMobileMenu(false)}>
-                      Kids' Section
+                      Kids&apos; Section
                     </Link>
                   </li>
                 </ul>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, X, Upload } from 'lucide-react';
 
 const CategoriesManagement = () => {
@@ -18,13 +18,8 @@ const CategoriesManagement = () => {
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await fetch('/api/categories?adminView=true');
       const data = await res.json();
       if (res.ok && data.success) {
@@ -32,13 +27,37 @@ const CategoriesManagement = () => {
       } else {
         setErrorMsg(data.error || 'Failed to load categories');
       }
-      setLoading(false);
     } catch (err) {
       console.log(err);
       setErrorMsg('Network error loading categories');
+    } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch('/api/categories?adminView=true')
+      .then(res => res.json())
+      .then(data => {
+        if (!ignore) {
+          if (data.success) {
+            setCategories(data.categories);
+          } else {
+            setErrorMsg(data.error || 'Failed to load categories');
+          }
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        if (!ignore) {
+          console.log(err);
+          setErrorMsg('Network error loading categories');
+          setLoading(false);
+        }
+      });
+    return () => { ignore = true; };
+  }, []);
 
   const handleOpenAddModal = () => {
     setEditingId(null);
@@ -51,7 +70,7 @@ const CategoriesManagement = () => {
   };
 
   const handleOpenEditModal = (cat) => {
-    setEditingId(cat._id);
+    setEditingId(cat.id || cat._id);
     setName(cat.name);
     setDisplayOrder(cat.displayOrder || 0);
     setImage(cat.image || '');
@@ -175,7 +194,7 @@ const CategoriesManagement = () => {
             </thead>
             <tbody>
               {categories.map(cat => (
-                <tr key={cat._id}>
+                <tr key={cat.id || cat._id || cat.slug}>
                   <td style={{ fontWeight: 700, color: 'white' }}>#{cat.displayOrder}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -205,7 +224,7 @@ const CategoriesManagement = () => {
                       <button 
                         type="button" 
                         className="action-btn delete" 
-                        onClick={() => handleDeleteCategory(cat._id)}
+                        onClick={() => handleDeleteCategory(cat.id || cat._id)}
                       >
                         <Trash2 size={14} />
                       </button>
