@@ -1,3 +1,6 @@
+/**
+ * One-time production task: Create or update admin account in Hostinger production MySQL database.
+ */
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
