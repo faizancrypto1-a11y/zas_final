@@ -127,7 +127,7 @@ const ProductsManagement = () => {
   };
 
   const handleOpenEditModal = (p) => {
-    setEditingId(p._id);
+    setEditingId(p.id || p._id);
     setName(p.name);
     setBrand(p.brand);
     setCategory(p.category);
@@ -294,7 +294,7 @@ const ProductsManagement = () => {
 
   const handleToggleActive = async (p) => {
     try {
-      const res = await fetch(`/api/products/${p._id}`, {
+      const res = await fetch(`/api/products/${p.id || p._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !p.isActive })
@@ -310,7 +310,7 @@ const ProductsManagement = () => {
 
   // Category dropdown option list with loading state
   const categoryOptions = adminCategoriesLoading
-    ? [{ _id: '__loading', name: 'Loading categories...', slug: '' }]
+    ? [{ id: '__loading', _id: '__loading', name: 'Loading categories...', slug: '' }]
     : adminCategories;
 
   return (
@@ -351,7 +351,7 @@ const ProductsManagement = () => {
           >
             <option value="">All Categories</option>
             {categoryOptions.map(c => (
-              <option key={c._id} value={c.slug} disabled={adminCategoriesLoading}>
+              <option key={c.id || c._id || c.slug} value={c.slug} disabled={adminCategoriesLoading}>
                 {c.name}
               </option>
             ))}
@@ -379,12 +379,12 @@ const ProductsManagement = () => {
             </thead>
             <tbody>
               {products.map(p => (
-                <tr key={p._id}>
+                <tr key={p.id || p._id}>
                   <td style={{ fontWeight: 700, color: 'white' }}>{p.sku}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--bg-dark-border)', backgroundColor: 'var(--bg-dark)', flexShrink: 0 }}>
-                        <img src={p.images[0] || 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?q=80&w=60'} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?q=80&w=60'} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <span style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                     </div>
@@ -427,7 +427,7 @@ const ProductsManagement = () => {
                       <button
                         type="button"
                         className="action-btn delete"
-                        onClick={() => handleDeleteProduct(p._id)}
+                        onClick={() => handleDeleteProduct(p.id || p._id)}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -509,7 +509,7 @@ const ProductsManagement = () => {
                         <option value="">Loading categories...</option>
                       ) : (
                         adminCategories.map(c => (
-                          <option key={c._id} value={c.slug}>{c.name}</option>
+                          <option key={c.id || c._id || c.slug} value={c.slug}>{c.name}</option>
                         ))
                       )}
                     </select>
