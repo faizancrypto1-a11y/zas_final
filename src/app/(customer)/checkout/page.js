@@ -124,7 +124,7 @@ const CheckoutContent = () => {
       // Build payload matching exact specifications
       const payload = {
         orderItems: cart.map(item => ({
-          product: item.product._id,
+          product: item.product.id || item.product._id,
           quantity: item.quantity,
           selectedVariant: item.selectedVariant
         })),

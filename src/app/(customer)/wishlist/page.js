@@ -21,7 +21,7 @@ const WishlistPage = () => {
         
         if (data.success) {
           // Filter products in active user wishlist
-          const wishProducts = data.products.filter(p => wishlist.includes(p._id));
+          const wishProducts = data.products.filter(p => wishlist.includes(p.id || p._id));
           setProducts(wishProducts);
         }
         setLoading(false);
@@ -68,7 +68,7 @@ const WishlistPage = () => {
       <div className="grid grid-4 animate-fade">
         {products.map((product) => (
           <ProductCard 
-            key={product._id} 
+            key={product.id || product._id} 
             product={product} 
             isWishlisted={true}
             onWishlistToggle={toggleWishlist}

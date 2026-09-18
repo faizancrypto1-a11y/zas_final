@@ -579,9 +579,9 @@ const ShopContent = () => {
               >
                 {products.map((product) => (
                   <ProductCard
-                    key={product._id}
+                    key={product.id || product._id}
                     product={product}
-                    isWishlisted={wishlist.includes(product._id)}
+                    isWishlisted={wishlist.includes(product.id || product._id)}
                     onWishlistToggle={toggleWishlist}
                     onAddToCart={addToCart}
                   />

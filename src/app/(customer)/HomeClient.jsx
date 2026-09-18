@@ -112,7 +112,7 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
         </div>
         <div className="category-row">
           {categories.map((cat) => (
-            <Link href={`/shop?category=${cat.slug}`} key={cat._id} className="category-card">
+            <Link href={`/shop?category=${cat.slug}`} key={cat.id || cat._id} className="category-card">
               <div className="category-img-box" style={{ overflow: 'hidden' }}>
                 <img
                   src={cat.image || `/images/categories/${cat.slug}.jpg`}
@@ -162,9 +162,9 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
           <div className="grid grid-4">
             {popularProducts.map((product) => (
               <ProductCard
-                key={product._id}
+                key={product.id || product._id}
                 product={product}
-                isWishlisted={wishlist.includes(product._id)}
+                isWishlisted={wishlist.includes(product.id || product._id)}
                 onWishlistToggle={toggleWishlist}
                 onAddToCart={addToCart}
               />
@@ -183,9 +183,9 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
           <div className="grid grid-4">
             {newArrivals.map((product) => (
               <ProductCard
-                key={product._id}
+                key={product.id || product._id}
                 product={product}
-                isWishlisted={wishlist.includes(product._id)}
+                isWishlisted={wishlist.includes(product.id || product._id)}
                 onWishlistToggle={toggleWishlist}
                 onAddToCart={addToCart}
               />
@@ -204,9 +204,9 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
           <div className="grid grid-4">
             {bestSellers.map((product) => (
               <ProductCard
-                key={product._id}
+                key={product.id || product._id}
                 product={product}
-                isWishlisted={wishlist.includes(product._id)}
+                isWishlisted={wishlist.includes(product.id || product._id)}
                 onWishlistToggle={toggleWishlist}
                 onAddToCart={addToCart}
               />
@@ -221,7 +221,7 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
            matched by category slug — no hardcoded slugs, no marketing-flag
            dependence. */}
       {categoryRows.map((cat) => (
-        <section key={cat._id} style={{ marginBottom: '60px' }}>
+        <section key={cat.id || cat._id} style={{ marginBottom: '60px' }}>
           <div className="section-header">
             <h2>{cat.name}</h2>
             <Link href={`/shop?category=${cat.slug}`} className="guide-link">View All <ArrowRight size={14} /></Link>
@@ -229,9 +229,9 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
           <div className="grid grid-4">
             {cat.products.map((product) => (
               <ProductCard
-                key={product._id}
+                key={product.id || product._id}
                 product={product}
-                isWishlisted={wishlist.includes(product._id)}
+                isWishlisted={wishlist.includes(product.id || product._id)}
                 onWishlistToggle={toggleWishlist}
                 onAddToCart={addToCart}
               />
@@ -249,7 +249,7 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
           {categories.map((cat) => {
             const bgImage = cat.image || `/images/collections/${cat.slug}.jpg`;
             return (
-              <Link href={`/shop?category=${cat.slug}`} key={cat._id} className="collection-banner-card" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(${bgImage})` }}>
+              <Link href={`/shop?category=${cat.slug}`} key={cat.id || cat._id} className="collection-banner-card" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(${bgImage})` }}>
                 <div className="collection-content">
                   <h3>{cat.name}</h3>
                   <span className="collection-btn">Explore Collection <ArrowRight size={14} /></span>

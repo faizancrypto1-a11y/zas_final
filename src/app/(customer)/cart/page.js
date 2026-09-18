@@ -152,14 +152,14 @@ const CartPage = () => {
                     <button 
                       type="button" 
                       className="cart-remove-btn"
-                      onClick={() => removeFromCart(item.product._id, item.selectedVariant)}
+                      onClick={() => removeFromCart(item.product.id || item.product._id, item.selectedVariant)}
                     >
                       <Trash2 size={14} /> Remove
                     </button>
                     <button 
                       type="button" 
                       style={{ fontSize: '0.8rem', color: 'var(--text-dark-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      onClick={() => handleMoveToWishlist(item.product._id, item.selectedVariant)}
+                      onClick={() => handleMoveToWishlist(item.product.id || item.product._id, item.selectedVariant)}
                     >
                       <Heart size={14} /> Move to Wishlist
                     </button>
@@ -172,7 +172,7 @@ const CartPage = () => {
                         type="button" 
                         className="qty-btn" 
                         style={{ padding: '4px 10px' }}
-                        onClick={() => updateCartQty(item.product._id, item.selectedVariant, item.quantity - 1)}
+                        onClick={() => updateCartQty(item.product.id || item.product._id, item.selectedVariant, item.quantity - 1)}
                       >
                         -
                       </button>
@@ -181,7 +181,7 @@ const CartPage = () => {
                         type="button" 
                         className="qty-btn" 
                         style={{ padding: '4px 10px' }}
-                        onClick={() => updateCartQty(item.product._id, item.selectedVariant, item.quantity + 1)}
+                        onClick={() => updateCartQty(item.product.id || item.product._id, item.selectedVariant, item.quantity + 1)}
                       >
                         +
                       </button>

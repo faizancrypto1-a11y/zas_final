@@ -14,6 +14,7 @@ const ProductCard = ({
   if (!product) return null;
 
   const {
+    id,
     _id,
     name,
     brand,
@@ -29,13 +30,14 @@ const ProductCard = ({
     isNewArrival
   } = product;
 
+  const productId = id || _id;
   const hasImage = images && images.length > 0;
   const isOutOfStock = stock <= 0;
 
   const handleWishlistClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    onWishlistToggle(_id);
+    onWishlistToggle(productId);
   };
 
   const handleCartClick = (e) => {

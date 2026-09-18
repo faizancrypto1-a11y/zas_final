@@ -78,13 +78,13 @@ const ProductDetailPage = () => {
           if (currentProd.variants?.ballTypes?.length > 0) setSelectedBall(currentProd.variants.ballTypes[0]);
           
           // Fetch reviews
-          fetchProductReviews(currentProd._id);
+          fetchProductReviews(currentProd.id || currentProd._id);
 
           // Fetch related items in same category
           const relatedRes = await fetch(`/api/products?category=${currentProd.category}`);
           const relatedData = await relatedRes.json();
           if (relatedData.success) {
-            setRelatedProducts(relatedData.products.filter(p => String(p._id) !== String(currentProd._id)).slice(0, 4));
+            setRelatedProducts(relatedData.products.filter(p => String(p.id || p._id) !== String(currentProd.id || currentProd._id)).slice(0, 4));
           }
         } else {
           setError(data.error || 'Product not found');
@@ -168,7 +168,7 @@ const ProductDetailPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: product._id,
+          productId: product.id || product._id,
           rating: Number(reviewerRating),
           comment: reviewerComment,
           userName: reviewerName,
@@ -452,11 +452,11 @@ const ProductDetailPage = () => {
             </a>
             <button 
               type="button" 
-              className={`btn btn-secondary btn-sm ${wishlist.includes(product._id) ? 'active' : ''}`}
+              className={`btn btn-secondary btn-sm ${wishlist.includes(product.id || product._id) ? 'active' : ''}`}
               style={{ width: 'fit-content' }}
-              onClick={() => toggleWishlist(product._id)}
+              onClick={() => toggleWishlist(product.id || product._id)}
             >
-              <Heart size={16} fill={wishlist.includes(product._id) ? '#EF4444' : 'transparent'} stroke={wishlist.includes(product._id) ? '#EF4444' : 'currentColor'} />
+              <Heart size={16} fill={wishlist.includes(product.id || product._id) ? '#EF4444' : 'transparent'} stroke={wishlist.includes(product.id || product._id) ? '#EF4444' : 'currentColor'} />
             </button>
           </div>
 
@@ -646,9 +646,9 @@ const ProductDetailPage = () => {
           <div className="grid grid-4 animate-fade">
             {relatedProducts.map((prod) => (
               <ProductCard 
-                key={prod._id}
+                key={prod.id || prod._id}
                 product={prod}
-                isWishlisted={wishlist.includes(prod._id)}
+                isWishlisted={wishlist.includes(prod.id || prod._id)}
                 onWishlistToggle={toggleWishlist}
                 onAddToCart={addToCart}
               />

@@ -198,7 +198,7 @@ export function StoreProvider({ children }) {
         : 'Product added to cart successfully',
       name: product.name,
       image,
-      dedupeKey: `cart-${product._id}`,
+      dedupeKey: `cart-${product.id || product._id}`,
       duration: 3500,
       action: { label: 'View Cart', href: '/cart' },
     });
@@ -216,7 +216,8 @@ export function StoreProvider({ children }) {
   const addToCart = useCallback((product, selectedVariant = {}, quantity = 1, options = {}) => {
     const { silent = false } = options;
     try {
-      if (!product || !product._id) {
+      const productId = product?.id || product?._id;
+      if (!product || !productId) {
         if (!silent) {
           showToast({
             type: 'error',
@@ -232,7 +233,7 @@ export function StoreProvider({ children }) {
       // Read from the ref so this callback stays stable across cart changes.
       const alreadyInCart = cartRef.current.some(
         (item) =>
-          item.product._id === product._id &&
+          (item.product?.id || item.product?._id) === productId &&
           JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant)
       );
 
@@ -240,7 +241,7 @@ export function StoreProvider({ children }) {
         // Find matching item index by ID and variant parameters
         const existingIndex = prevCart.findIndex(
           (item) =>
-            item.product._id === product._id &&
+            (item.product?.id || item.product?._id) === productId &&
             JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant)
         );
 
@@ -276,7 +277,7 @@ export function StoreProvider({ children }) {
     setCart((prevCart) =>
       prevCart.filter(
         (item) =>
-          !(item.product._id === productId &&
+          !((item.product?.id || item.product?._id) === productId &&
             JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant))
       )
     );
@@ -290,7 +291,7 @@ export function StoreProvider({ children }) {
     setCart((prevCart) => {
       return prevCart.map((item) => {
         if (
-          item.product._id === productId &&
+          (item.product?.id || item.product?._id) === productId &&
           JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant)
         ) {
           return { ...item, quantity: qty };
