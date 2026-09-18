@@ -33,6 +33,7 @@ const LoginPage = () => {
   const { user, cart } = useStore();
 
   const [errorMessage, setErrorMessage] = useState('');
+  const [authUrl, setAuthUrl] = useState('/api/auth/google');
 
   // Redirect if already logged in.
   useEffect(() => {
@@ -45,12 +46,16 @@ const LoginPage = () => {
     }
   }, [user, cart]);
 
-  // Surface any ?error= code returned by the OAuth callback.
+  // Surface any ?error= code returned by the OAuth callback and forward next/redirect.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('error');
     if (code) {
       setErrorMessage(ERROR_MESSAGES[code] || 'Sign-in failed. Please try again.');
+    }
+    const next = params.get('next') || params.get('redirect');
+    if (next && next.startsWith('/') && !next.startsWith('//')) {
+      setAuthUrl(`/api/auth/google?next=${encodeURIComponent(next)}`);
     }
   }, []);
 
@@ -73,7 +78,7 @@ const LoginPage = () => {
 
         {/* Full page navigation to the OAuth start route (not client-side Link). */}
         <a
-          href="/api/auth/google"
+          href={authUrl}
           className="btn btn-full"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', backgroundColor: 'white', color: 'var(--text-dark)', border: '1px solid var(--bg-light-border)', fontWeight: 600, padding: '12px' }}
         >

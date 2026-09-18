@@ -36,10 +36,10 @@ export async function POST(request) {
       );
     }
 
-    // Users from old google auth might not have a password
+    // Users registered via Google auth do not have a password
     if (!user.password) {
       return NextResponse.json(
-        { success: false, error: 'Please sign up or reset your password. (Google login is no longer supported)' },
+        { success: false, error: 'This account was registered with Google. Please use Continue with Google to sign in.' },
         { status: 401 }
       );
     }
