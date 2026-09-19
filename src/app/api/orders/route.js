@@ -16,10 +16,14 @@ export async function GET(request) {
 
     let orders;
     if (user.role === 'admin') {
-      orders = await prisma.order.findMany({ orderBy: { createdAt: 'desc' } });
+      orders = await prisma.order.findMany({
+        include: { orderItems: true },
+        orderBy: { createdAt: 'desc' }
+      });
     } else {
       orders = await prisma.order.findMany({
         where: { userId: user.id },
+        include: { orderItems: true },
         orderBy: { createdAt: 'desc' }
       });
     }

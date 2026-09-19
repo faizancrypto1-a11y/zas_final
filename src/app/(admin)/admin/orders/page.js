@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, 
   X, 
@@ -30,11 +30,7 @@ const OrdersManagement = () => {
   const [trackingId, setTrackingId] = useState('');
   const [courierName, setCourierName] = useState('');
 
-  useEffect(() => {
-    fetchAdminOrders();
-  }, [search, statusFilter]);
-
-  const fetchAdminOrders = async () => {
+  const fetchAdminOrders = useCallback(async () => {
     try {
       setLoading(true);
       let url = '/api/orders';
@@ -43,12 +39,12 @@ const OrdersManagement = () => {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        let filtered = data.orders;
+        let filtered = data.orders || [];
 
         if (search) {
           filtered = filtered.filter(o =>
-            o.orderId.toLowerCase().includes(search.toLowerCase()) ||
-            o.shippingAddress.fullName.toLowerCase().includes(search.toLowerCase())
+            (o.orderId && o.orderId.toLowerCase().includes(search.toLowerCase())) ||
+            (o.shippingAddress?.fullName && o.shippingAddress.fullName.toLowerCase().includes(search.toLowerCase()))
           );
         }
 
@@ -65,7 +61,12 @@ const OrdersManagement = () => {
       console.log('Error fetching admin orders:', err);
       setLoading(false);
     }
-  };
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAdminOrders();
+  }, [fetchAdminOrders]);
 
   const handleOpenDetailsModal = (order) => {
     setSelectedOrder(order);
@@ -80,7 +81,8 @@ const OrdersManagement = () => {
     if (!selectedOrder) return;
 
     try {
-      const res = await fetch(`/api/orders/${selectedOrder._id}`, {
+      const orderId = selectedOrder.id || selectedOrder._id;
+      const res = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +173,7 @@ const OrdersManagement = () => {
             </thead>
             <tbody>
               {orders.map(order => (
-                <tr key={order._id}>
+                <tr key={order.id || order._id}>
                   <td style={{ fontWeight: 700, color: 'white' }}>{order.orderId}</td>
                   <td>{order.shippingAddress.fullName}</td>
                   <td>{new Date(order.createdAt).toLocaleDateString()}</td>
@@ -316,8 +318,8 @@ const OrdersManagement = () => {
                   Ordered Items
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-                  {selectedOrder.orderItems.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  {(selectedOrder.orderItems || []).map((item, idx) => (
+                    <div key={item.id || item._id || idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: 'var(--text-light-muted)' }}>
                         {item.name} <strong>x{item.quantity}</strong>
                       </span>
@@ -354,8 +356,7 @@ const OrdersManagement = () => {
         <div className="invoice-print-container" style={{ padding: '40px', fontFamily: 'sans-serif' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid black', paddingBottom: '20px', marginBottom: '30px' }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>APEX CRICKET SPORTS</h2>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#555' }}>County Level Cricket Supplies</p>
+              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>ZAS SPORTS</h2>
             </div>
             <div style={{ textAlign: 'right' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>INVOICE SHEET</h3>
@@ -396,8 +397,8 @@ const OrdersManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {selectedPrintOrder.orderItems.map((item, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
+              {(selectedPrintOrder.orderItems || []).map((item, idx) => (
+                <tr key={item.id || item._id || idx} style={{ borderBottom: '1px solid #ddd' }}>
                   <td style={{ padding: '12px 0' }}>{item.sku}</td>
                   <td style={{ padding: '12px 0' }}>
                     {item.name}
@@ -440,7 +441,7 @@ const OrdersManagement = () => {
           </div>
 
           <div style={{ borderTop: '1px solid #ddd', marginTop: '80px', paddingTop: '20px', textAlign: 'center', fontSize: '11px', color: '#555' }}>
-            Thank you for shopping at Apex Cricket. For return instructions, refer to return policies.
+            Thank you for shopping at ZAS SPORTS. For return instructions, refer to return policies.
           </div>
         </div>
       )}
