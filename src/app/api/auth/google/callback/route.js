@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from 'src/lib/prisma';
 import { signToken } from 'src/lib/auth';
-import { GOOGLE_TOKEN_URL, GOOGLE_USERINFO_URL, getRedirectUri } from 'src/lib/googleAuth';
+import {
+  GOOGLE_TOKEN_URL,
+  GOOGLE_USERINFO_URL,
+  getRedirectUri,
+  getSiteUrl
+} from 'src/lib/googleAuth';
 
 // GET /api/auth/google/callback
 // Google redirects here with ?code & ?state.
@@ -9,7 +14,8 @@ import { GOOGLE_TOKEN_URL, GOOGLE_USERINFO_URL, getRedirectUri } from 'src/lib/g
 // retrieve the user's verified Google profile, find-or-create the User in Prisma,
 // issue our session JWT cookie, and redirect to destination (/account or previous page).
 export async function GET(request) {
-  const loginUrl = (err) => new URL(`/login${err ? `?error=${err}` : ''}`, request.url);
+  const siteUrl = getSiteUrl(request);
+  const loginUrl = (err) => new URL(`/login${err ? `?error=${err}` : ''}`, siteUrl);
 
   try {
     const { searchParams } = request.nextUrl;
@@ -138,7 +144,7 @@ export async function GET(request) {
       ? savedRedirect
       : '/account';
 
-    const response = NextResponse.redirect(new URL(destination, request.url));
+    const response = NextResponse.redirect(new URL(destination, siteUrl));
 
     // 9. Set HTTP-only session cookie
     response.cookies.set('token', token, {
