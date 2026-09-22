@@ -71,7 +71,7 @@ const Header = () => {
           <div className="header-top desktop-only-flex">
             {/* Logo */}
             <Link href="/" className="logo">
-              ZAS<span>SPORTS</span>
+              <img src="/images/logo.jpeg" alt="ZAS Sports" className="logo-img" />
             </Link>
 
             {/* Large Search Bar */}
@@ -185,7 +185,7 @@ const Header = () => {
             </button>
 
             <Link href="/" className="logo">
-              ZAS<span>SPORTS</span>
+              <img src="/images/logo.jpeg" alt="ZAS Sports" className="logo-img" />
             </Link>
 
             <div className="header-actions">
@@ -251,7 +251,9 @@ const Header = () => {
           <div className="drawer-overlay" style={{ zIndex: 199 }} onClick={() => setShowMobileMenu(false)} />
           <div className="mobile-category-drawer animate-fade" style={{ zIndex: 200 }}>
             <div className="drawer-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 20px', borderBottom: '1px solid var(--bg-light-border)' }}>
-              <span className="logo">ZAS<span>SPORTS</span></span>
+              <span className="logo">
+                <img src="/images/logo.jpeg" alt="ZAS Sports" className="logo-img" />
+              </span>
               <button type="button" onClick={() => setShowMobileMenu(false)}>
                 <X size={22} />
               </button>

@@ -30,20 +30,15 @@
 }
 
 .logo {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 800;
-  font-size: 1.6rem;
-  text-transform: uppercase;
-  color: var(--text-dark);
   display: flex;
   align-items: center;
-  gap: 4px;
+  text-decoration: none;
+  flex-shrink: 0;
 }
-.logo span {
-  background-color: var(--bg-dark);
-  color: var(--primary);
-  padding: 2px 8px;
-  border-radius: var(--border-radius-sm);
+.logo-img {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
 }
 
 .search-bar-container {

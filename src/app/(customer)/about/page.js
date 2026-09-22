@@ -44,11 +44,11 @@ const AboutPage = () => {
 
       <article style={{ backgroundColor: 'white', border: '1px solid var(--bg-light-border)', borderRadius: 'var(--border-radius-md)', padding: '40px', boxShadow: 'var(--shadow-sm)' }}>
         <h1 style={{ fontSize: '2.2rem', fontFamily: 'Outfit', textTransform: 'uppercase', marginBottom: '24px', borderBottom: '2px solid var(--bg-light-border)', paddingBottom: '15px' }}>
-          {page?.title || 'About Apex Cricket'}
+          {page?.title || 'About ZAS Sport'}
         </h1>
 
         <div style={{ lineHeight: '1.8', color: 'var(--text-dark-muted)', fontSize: '0.95rem', whiteSpace: 'pre-line' }}>
-          {page?.content || `We are a premium Decathlon-inspired online cricket store offering county-grade bats, leather balls, high velocity helmets, and all accessory supplies.`}
+          {page?.content || `We are a premium online cricket store offering county-grade bats, leather balls, high velocity helmets, and all accessory supplies.`}
         </div>
 
         {/* Company core pillars graphic */}
