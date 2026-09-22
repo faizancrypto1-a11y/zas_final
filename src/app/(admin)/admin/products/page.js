@@ -49,6 +49,7 @@ const ProductsManagement = () => {
   const [handsInput, setHandsInput] = useState('');
   const [woodsInput, setWoodsInput] = useState('');
   const [ballsInput, setBallsInput] = useState('');
+  const [sizePricesInput, setSizePricesInput] = useState('');
 
   // File upload state
   const [uploading, setUploading] = useState(false);
@@ -122,6 +123,7 @@ const ProductsManagement = () => {
     setHandsInput('');
     setWoodsInput('');
     setBallsInput('');
+    setSizePricesInput('');
     setErrorMsg('');
     setShowModal(true);
   };
@@ -156,6 +158,7 @@ const ProductsManagement = () => {
     setHandsInput(p.variants?.handOrientations?.join(', ') || '');
     setWoodsInput(p.variants?.batWoodTypes?.join(', ') || '');
     setBallsInput(p.variants?.ballTypes?.join(', ') || '');
+    setSizePricesInput(p.variants?.sizePrices ? Object.entries(p.variants.sizePrices).map(([k, v]) => `${k}: ${v}`).join(', ') : '');
     setErrorMsg('');
     setShowModal(true);
   };
@@ -233,6 +236,22 @@ const ProductsManagement = () => {
       batWoodTypes: parseCommaString(woodsInput),
       ballTypes: parseCommaString(ballsInput),
     };
+
+    // Parse size-specific prices: "S: 499, M: 599, L: 699"
+    const sizePrices = {};
+    if (sizePricesInput.trim()) {
+      sizePricesInput.split(',').forEach(pair => {
+        const colonIdx = pair.indexOf(':');
+        if (colonIdx > -1) {
+          const key = pair.slice(0, colonIdx).trim();
+          const val = parseFloat(pair.slice(colonIdx + 1).trim());
+          if (key && !isNaN(val)) {
+            sizePrices[key] = val;
+          }
+        }
+      });
+    }
+    variants.sizePrices = sizePrices;
 
     const payload = {
       name,
@@ -611,6 +630,16 @@ const ProductsManagement = () => {
                       value={sizesInput}
                       onChange={(e) => setSizesInput(e.target.value)}
                       placeholder="e.g. S, M, L"
+                      className="admin-form-control"
+                    />
+                  </div>
+                  <div className="admin-form-group">
+                    <label>Size-Specific Prices <span style={{ fontWeight: 400, color: 'var(--text-light-muted)' }}>(optional — format: Size: price, e.g. S: 499, M: 599)</span></label>
+                    <input
+                      type="text"
+                      value={sizePricesInput}
+                      onChange={(e) => setSizePricesInput(e.target.value)}
+                      placeholder="e.g. S: 499, M: 599, L: 699"
                       className="admin-form-control"
                     />
                   </div>

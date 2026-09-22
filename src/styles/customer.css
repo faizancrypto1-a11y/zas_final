@@ -636,11 +636,13 @@
   padding: 16px;
   background-color: var(--bg-light);
   border-radius: var(--border-radius-md);
+  transition: background-color 0.3s ease;
 }
 .detail-price {
   font-family: 'Outfit', sans-serif;
   font-size: 2rem;
   font-weight: 800;
+  transition: transform 0.25s ease, opacity 0.2s ease;
 }
 .detail-mrp {
   font-size: 1.1rem;

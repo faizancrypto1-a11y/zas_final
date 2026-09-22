@@ -32,7 +32,7 @@ const ProductDetailPage = () => {
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Gallery and configuration states
   const [activeImgIndex, setActiveImgIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState('');
@@ -144,15 +144,31 @@ const ProductDetailPage = () => {
     return vars;
   };
 
+  // Compute effective price/MRP/discount for the currently selected size
+  const getEffectivePrice = () => {
+    if (!product) return { price: 0, mrp: 0, discount: 0 };
+    const base = { price: product.price, mrp: product.mrp };
+    if (selectedSize && product.variants?.sizePrices?.[selectedSize]) {
+      const sp = product.variants.sizePrices[selectedSize];
+      return {
+        price: sp.price != null ? sp.price : base.price,
+        mrp: sp.mrp != null ? sp.mrp : base.mrp,
+      };
+    }
+    return base;
+  };
+  const effective = getEffectivePrice();
+
   const handleAddToCart = () => {
     if (product.stock <= 0) return;
-    addToCart(product, getSelectedVariants(), quantity);
+    const pricedProduct = { ...product, price: effective.price, mrp: effective.mrp };
+    addToCart(pricedProduct, getSelectedVariants(), quantity);
   };
 
   const handleBuyNow = () => {
     if (product.stock <= 0) return;
-    // Skip the toast — we navigate straight to the cart page.
-    addToCart(product, getSelectedVariants(), quantity, { silent: true });
+    const pricedProduct = { ...product, price: effective.price, mrp: effective.mrp };
+    addToCart(pricedProduct, getSelectedVariants(), quantity, { silent: true });
     router.push('/cart');
   };
 
@@ -214,7 +230,7 @@ const ProductDetailPage = () => {
   }
 
   const isOutOfStock = product.stock <= 0;
-  const whatsappMessage = `Hi, I am interested in purchasing the *${product.name}* (SKU: ${product.sku}) listed for ₹${product.price} on your store. Is it available?`;
+  const whatsappMessage = `Hi, I am interested in purchasing the *${product.name}* (SKU: ${product.sku}) listed for ${formatINR(effective.price)} on your store. Is it available?`;
   const whatsappUrl = `https://wa.me/918860654659?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
@@ -286,12 +302,12 @@ const ProductDetailPage = () => {
           </div>
 
           {/* Pricing Box */}
-          <div className="detail-price-box">
-            <span className="detail-price">{formatINR(product.price)}</span>
-            {product.mrp > product.price && (
+          <div className="detail-price-box" key={`price-${effective.price}`}>
+            <span className="detail-price">{formatINR(effective.price)}</span>
+            {effective.mrp > effective.price && (
               <>
-                <span className="detail-mrp">{formatINR(product.mrp)}</span>
-                <span className="detail-discount">{product.discount}% Off</span>
+                <span className="detail-mrp">{formatINR(effective.mrp)}</span>
+                <span className="detail-discount">{Math.round(((effective.mrp - effective.price) / effective.mrp) * 100)}% Off</span>
               </>
             )}
           </div>
