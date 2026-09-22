@@ -118,6 +118,7 @@ const CheckoutContent = () => {
     const payload = {
       orderItems: cart.map(item => ({
         product: item.product.id || item.product._id,
+        price: item.product.price,
         quantity: item.quantity,
         selectedVariant: item.selectedVariant
       })),
@@ -405,7 +406,7 @@ const CheckoutContent = () => {
             {cart.map((item, idx) => (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--text-dark-muted)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.product.name} <strong>x{item.quantity}</strong>
+                  {item.product.name} {item.selectedVariant?.size ? <strong style={{ color: 'var(--text-dark)' }}>({item.selectedVariant.size})</strong> : ''} <strong>x{item.quantity}</strong>
                 </span>
                 <span style={{ fontWeight: 600 }}>{formatINR(item.product.price * item.quantity)}</span>
               </div>

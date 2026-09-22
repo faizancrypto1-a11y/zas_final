@@ -112,7 +112,7 @@ export async function POST(request) {
         );
       }
 
-      const itemPrice = product.price;
+      const itemPrice = item.price != null ? item.price : product.price;
       const itemSubtotal = itemPrice * item.quantity;
       subtotal += itemSubtotal;
 

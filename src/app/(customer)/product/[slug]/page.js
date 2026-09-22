@@ -145,17 +145,23 @@ const ProductDetailPage = () => {
   };
 
   // Compute effective price/MRP/discount for the currently selected size
+  // sizePrices values can be either a plain number (just price) or an object { price, mrp }
   const getEffectivePrice = () => {
-    if (!product) return { price: 0, mrp: 0, discount: 0 };
+    if (!product) return { price: 0, mrp: 0 };
     const base = { price: product.price, mrp: product.mrp };
-    if (selectedSize && product.variants?.sizePrices?.[selectedSize]) {
-      const sp = product.variants.sizePrices[selectedSize];
-      return {
-        price: sp.price != null ? sp.price : base.price,
-        mrp: sp.mrp != null ? sp.mrp : base.mrp,
-      };
+    if (!selectedSize || !product.variants?.sizePrices) return base;
+
+    const sp = product.variants.sizePrices[selectedSize];
+    if (sp == null) return base;
+
+    if (typeof sp === 'number') {
+      return { price: sp, mrp: base.mrp };
     }
-    return base;
+
+    return {
+      price: sp.price != null ? sp.price : base.price,
+      mrp: sp.mrp != null ? sp.mrp : base.mrp,
+    };
   };
   const effective = getEffectivePrice();
 
