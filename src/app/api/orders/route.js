@@ -70,7 +70,10 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Payment method is required' }, { status: 400 });
     }
     if (paymentMethod !== 'COD') {
-      return NextResponse.json({ success: false, error: 'Online payments are currently disabled' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Online payments are processed through Razorpay. Please select Cash on Delivery or use the Online Payment option.' },
+        { status: 400 }
+      );
     }
     if (!user && (!guestDetails || !guestDetails.name || !guestDetails.email || !guestDetails.phone)) {
       return NextResponse.json({ success: false, error: 'Guest checkout requires contact details' }, { status: 400 });

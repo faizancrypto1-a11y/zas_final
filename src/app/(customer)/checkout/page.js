@@ -13,7 +13,6 @@ const CheckoutContent = () => {
 
   const couponParam = searchParams.get('coupon') || '';
 
-  // Shipping Address Form State
   const [fullName, setFullName] = useState('');
   const [addressLine, setAddressLine] = useState('');
   const [city, setCity] = useState('');
@@ -21,39 +20,48 @@ const CheckoutContent = () => {
   const [pincode, setPincode] = useState('');
   const [phone, setPhone] = useState('');
 
-  // Guest details form state
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
 
-  const [paymentMethod, setPaymentMethod] = useState('COD'); // COD or Online
+  const [paymentMethod, setPaymentMethod] = useState('COD');
   const [placingOrder, setPlacingOrder] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  // Set once an order succeeds. Stops the empty-cart effect from racing a
-  // /cart redirect against the /order-success navigation after clearCart().
   const orderCompletedRef = useRef(false);
+  const orderPayloadRef = useRef(null);
 
-  // Coupon calculations
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => setRazorpayLoaded(true);
+    script.onerror = () => {
+      console.warn('Razorpay script failed to load.');
+    };
+    document.body.appendChild(script);
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+
   const [appliedCoupon, setAppliedCoupon] = useState(null);
 
-  // 1. Initial mounting checks
   useEffect(() => {
-    // Order just completed: cart was cleared on purpose. Do not redirect to
-    // /cart — the success navigation owns the transition now.
     if (orderCompletedRef.current) return;
-
     if (cart.length === 0) {
       router.push('/cart');
       return;
     }
-
-    // Autofill user profile data if logged in
     if (user) {
       setFullName(user.name);
       setGuestName(user.name);
       setGuestEmail(user.email);
-      
       const defaultAddr = user.addresses?.find(addr => addr.isDefault) || user.addresses?.[0];
       if (defaultAddr) {
         setFullName(defaultAddr.fullName || user.name);
@@ -64,8 +72,6 @@ const CheckoutContent = () => {
         setPhone(defaultAddr.phone || '');
       }
     }
-
-    // Load applied coupon details from API validation
     if (couponParam) {
       validateUrlCoupon();
     }
@@ -77,10 +83,7 @@ const CheckoutContent = () => {
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: couponParam,
-          subtotal: sub
-        })
+        body: JSON.stringify({ code: couponParam, subtotal: sub })
       });
       const data = await res.json();
       if (data.success) {
@@ -96,9 +99,8 @@ const CheckoutContent = () => {
     }
   };
 
-  // 2. Calculations
   const subtotal = cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
-  
+
   let discountAmount = 0;
   if (appliedCoupon) {
     if (appliedCoupon.discountType === 'percentage') {
@@ -112,66 +114,161 @@ const CheckoutContent = () => {
   const shippingCharges = subtotal >= freeShippingThreshold ? 0 : (settings.shippingCharges || 10);
   const totalAmount = subtotal - discountAmount + shippingCharges;
 
-  // 3. Form Submission
+  const buildOrderPayload = () => {
+    const payload = {
+      orderItems: cart.map(item => ({
+        product: item.product.id || item.product._id,
+        quantity: item.quantity,
+        selectedVariant: item.selectedVariant
+      })),
+      shippingAddress: { fullName, addressLine, city, state, pincode, phone },
+      paymentMethod,
+      couponCode: appliedCoupon ? appliedCoupon.code : ''
+    };
+    if (!user) {
+      payload.guestDetails = {
+        name: guestName || fullName,
+        email: guestEmail,
+        phone: guestPhone || phone
+      };
+    }
+    return payload;
+  };
+
+  const handleCODOrder = async () => {
+    const payload = buildOrderPayload();
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success && data.order) {
+      orderCompletedRef.current = true;
+      clearCart();
+      router.replace('/order-success?orderId=' + data.order.orderId);
+    } else {
+      setErrorMessage(data.error || 'Failed to place order. Please try again.');
+      setPlacingOrder(false);
+    }
+  };
+
+  const handleOnlinePayment = async () => {
+    try {
+      setPlacingOrder(true);
+      setErrorMessage('');
+
+      const payload = buildOrderPayload();
+      orderPayloadRef.current = payload;
+
+      const createRes = await fetch('/api/payments/razorpay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const createData = await createRes.json();
+
+      if (!createRes.ok || !createData.success) {
+        setErrorMessage(createData.error || 'Failed to initialize payment. Please try again.');
+        setPlacingOrder(false);
+        return;
+      }
+
+      const { razorpayOrderId, amount, currency, keyId, prefill } = createData;
+
+      if (!razorpayLoaded || typeof window.Razorpay === 'undefined') {
+        setErrorMessage('Payment gateway is loading. Please wait and try again.');
+        setPlacingOrder(false);
+        return;
+      }
+
+      setIsProcessingPayment(true);
+
+      const options = {
+        key: keyId,
+        amount: amount,
+        currency: currency,
+        name: 'ZAS SPORTS',
+        description: 'Order Payment - ' + formatINR(amount / 100),
+        order_id: razorpayOrderId,
+        prefill: prefill || {},
+        notes: { address: addressLine + ', ' + city + ', ' + state + ' - ' + pincode },
+        theme: { color: '#1a1a2e' },
+        handler: async function (response) {
+          try {
+            const verifyPayload = {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              orderItems: orderPayloadRef.current ? orderPayloadRef.current.orderItems : [],
+              shippingAddress: orderPayloadRef.current ? orderPayloadRef.current.shippingAddress : null,
+              paymentMethod: 'Online',
+              couponCode: orderPayloadRef.current ? orderPayloadRef.current.couponCode : '',
+              guestDetails: orderPayloadRef.current ? orderPayloadRef.current.guestDetails : null
+            };
+
+            const verifyRes = await fetch('/api/payments/razorpay/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(verifyPayload)
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.ok && verifyData.success) {
+              orderCompletedRef.current = true;
+              clearCart();
+              router.replace('/order-success?orderId=' + verifyData.orderId);
+            } else {
+              setErrorMessage(verifyData.error || 'Payment verification failed. Please contact support if amount was deducted.');
+              setIsProcessingPayment(false);
+              setPlacingOrder(false);
+            }
+          } catch (err) {
+            console.error('Payment verification error:', err);
+            setErrorMessage('Payment verification failed. Please contact support if amount was deducted.');
+            setIsProcessingPayment(false);
+            setPlacingOrder(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingPayment(false);
+            setPlacingOrder(false);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (err) {
+      console.error('Online payment error:', err);
+      setErrorMessage('Something went wrong. Please try again.');
+      setPlacingOrder(false);
+      setIsProcessingPayment(false);
+    }
+  };
+
   const handlePlaceOrderSubmit = async (e) => {
     e.preventDefault();
-    if (placingOrder) return;
+    if (placingOrder || isProcessingPayment) return;
 
     try {
       setPlacingOrder(true);
       setErrorMessage('');
 
-      // Build payload matching exact specifications
-      const payload = {
-        orderItems: cart.map(item => ({
-          product: item.product.id || item.product._id,
-          quantity: item.quantity,
-          selectedVariant: item.selectedVariant
-        })),
-        shippingAddress: {
-          fullName,
-          addressLine,
-          city,
-          state,
-          pincode,
-          phone
-        },
-        paymentMethod,
-        couponCode: appliedCoupon ? appliedCoupon.code : ''
-      };
-
-      if (!user) {
-        payload.guestDetails = {
-          name: guestName || fullName,
-          email: guestEmail,
-          phone: guestPhone || phone
-        };
-      }
-
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-
-      if (data.success && data.order) {
-        // Flag completion BEFORE clearing the cart so the empty-cart effect
-        // skips its /cart redirect. Keep placingOrder true so the button stays
-        // locked and no duplicate order can be submitted mid-navigation.
-        orderCompletedRef.current = true;
-        clearCart();
-        // replace() so back button cannot return to checkout and resubmit.
-        router.replace(`/order-success?orderId=${data.order.orderId}`);
+      if (paymentMethod === 'COD') {
+        await handleCODOrder();
       } else {
-        setErrorMessage(data.error || 'Failed to place order. Check stock availability.');
-        setPlacingOrder(false);
+        await handleOnlinePayment();
       }
-
     } catch (err) {
       console.error('Checkout submit error:', err);
       setErrorMessage('Network error completing checkout process.');
       setPlacingOrder(false);
+      setIsProcessingPayment(false);
     }
   };
 
@@ -180,7 +277,7 @@ const CheckoutContent = () => {
       <h1 style={{ fontSize: '2rem', textTransform: 'uppercase', fontFamily: 'Outfit', margin: '30px 0 10px' }}>
         Secure Checkout
       </h1>
-      
+
       {errorMessage && (
         <div style={{ backgroundColor: '#fee2e2', color: 'var(--danger)', padding: '15px 20px', borderRadius: 'var(--border-radius-md)', fontWeight: 600, marginBottom: '20px' }}>
           {errorMessage}
@@ -188,30 +285,25 @@ const CheckoutContent = () => {
       )}
 
       <form onSubmit={handlePlaceOrderSubmit} className="checkout-grid">
-        {/* Left Forms */}
         <div>
-          {/* Guest Contact Details (if not logged in) */}
           {!user && (
             <div className="checkout-section">
               <h3>Contact Information</h3>
               <div className="grid grid-2">
                 <div className="form-group">
                   <label className="form-label">Full Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={guestName}
-                    onChange={(e) => {
-                      setGuestName(e.target.value);
-                      if (!fullName) setFullName(e.target.value);
-                    }}
+                    onChange={(e) => { setGuestName(e.target.value); if (!fullName) setFullName(e.target.value); }}
                     className="form-control"
                     required
                   />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Email Address</label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     value={guestEmail}
                     onChange={(e) => setGuestEmail(e.target.value)}
                     className="form-control"
@@ -220,13 +312,10 @@ const CheckoutContent = () => {
                 </div>
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
                   <label className="form-label">Phone Number (Order Updates)</label>
-                  <input 
-                    type="tel" 
+                  <input
+                    type="tel"
                     value={guestPhone}
-                    onChange={(e) => {
-                      setGuestPhone(e.target.value);
-                      if (!phone) setPhone(e.target.value);
-                    }}
+                    onChange={(e) => { setGuestPhone(e.target.value); if (!phone) setPhone(e.target.value); }}
                     className="form-control"
                     required
                   />
@@ -235,84 +324,46 @@ const CheckoutContent = () => {
             </div>
           )}
 
-          {/* Delivery Address */}
           <div className="checkout-section">
             <h3>Delivery Address</h3>
             <div className="grid grid-2">
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Receiver's Full Name</label>
-                <input 
-                  type="text" 
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="form-control"
-                  required
-                />
+                <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="form-control" required />
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Street Address & Landmark</label>
-                <input 
-                  type="text" 
-                  value={addressLine}
-                  onChange={(e) => setAddressLine(e.target.value)}
-                  className="form-control"
-                  required
-                />
+                <input type="text" value={addressLine} onChange={(e) => setAddressLine(e.target.value)} className="form-control" required />
               </div>
               <div className="form-group">
                 <label className="form-label">City</label>
-                <input 
-                  type="text" 
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="form-control"
-                  required
-                />
+                <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="form-control" required />
               </div>
               <div className="form-group">
                 <label className="form-label">State</label>
-                <input 
-                  type="text" 
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  className="form-control"
-                  required
-                />
+                <input type="text" value={state} onChange={(e) => setState(e.target.value)} className="form-control" required />
               </div>
               <div className="form-group">
                 <label className="form-label">Pincode</label>
-                <input 
-                  type="text" 
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  className="form-control"
-                  required
-                />
+                <input type="text" value={pincode} onChange={(e) => setPincode(e.target.value)} className="form-control" required />
               </div>
               <div className="form-group">
                 <label className="form-label">Contact Number</label>
-                <input 
-                  type="tel" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="form-control"
-                  required
-                />
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="form-control" required />
               </div>
             </div>
           </div>
 
-          {/* Payment Method Selector */}
           <div className="checkout-section">
             <h3>Payment Method</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label 
-                className={`form-control ${paymentMethod === 'COD' ? 'active' : ''}`}
+              <label
+                className={'form-control ' + (paymentMethod === 'COD' ? 'active' : '')}
                 style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', padding: '16px', border: paymentMethod === 'COD' ? '2px solid var(--text-dark)' : '1px solid var(--bg-light-border)' }}
               >
-                <input 
-                  type="radio" 
-                  name="paymentMethod" 
+                <input
+                  type="radio"
+                  name="paymentMethod"
                   value="COD"
                   checked={paymentMethod === 'COD'}
                   onChange={() => setPaymentMethod('COD')}
@@ -325,33 +376,31 @@ const CheckoutContent = () => {
                 </div>
               </label>
 
-              {/* Online Payment Option - DISABLED FOR PRODUCTION */}
-              <label 
-                className={`form-control ${paymentMethod === 'Online' ? 'active' : ''}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'not-allowed', padding: '16px', border: paymentMethod === 'Online' ? '2px solid var(--text-dark)' : '1px solid var(--bg-light-border)', opacity: 0.6 }}
+              <label
+                className={'form-control ' + (paymentMethod === 'Online' ? 'active' : '')}
+                style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', padding: '16px', border: paymentMethod === 'Online' ? '2px solid var(--text-dark)' : '1px solid var(--bg-light-border)' }}
               >
-                <input 
-                  type="radio" 
-                  name="paymentMethod" 
+                <input
+                  type="radio"
+                  name="paymentMethod"
                   value="Online"
                   checked={paymentMethod === 'Online'}
-                  onChange={() => {}}
-                  disabled
-                  style={{ width: '20px', height: '20px', accentColor: 'var(--text-dark)', cursor: 'not-allowed' }}
+                  onChange={() => setPaymentMethod('Online')}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--text-dark)' }}
                 />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: '600', fontSize: '1.05rem', color: 'var(--text-dark)' }}>Online Payment (Currently Unavailable)</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dark-muted)' }}>Online payments will be available soon.</span>
+                <CreditCard size={20} />
+                <div>
+                  <span style={{ fontWeight: 700, display: 'block' }}>Online Payment</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dark-muted)' }}>Pay securely using UPI, Cards, Net Banking or Wallets.</span>
                 </div>
               </label>
             </div>
           </div>
         </div>
 
-        {/* Right Summary column */}
         <aside className="summary-box">
           <h3 className="summary-title">Order Items</h3>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--bg-light-border)', paddingBottom: '15px' }}>
             {cart.map((item, idx) => (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
@@ -363,7 +412,6 @@ const CheckoutContent = () => {
             ))}
           </div>
 
-          {/* Pricing math */}
           <div className="summary-row">
             <span>Subtotal</span>
             <span>{formatINR(subtotal)}</span>
@@ -390,13 +438,13 @@ const CheckoutContent = () => {
             <span>{formatINR(totalAmount)}</span>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn btn-accent btn-full"
-            disabled={placingOrder}
+            disabled={placingOrder || isProcessingPayment}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {placingOrder ? 'Processing...' : 'Place Secure Order'} <ArrowRight size={16} />
+            {placingOrder || isProcessingPayment ? 'Processing...' : 'Place Secure Order'} <ArrowRight size={16} />
           </button>
 
           <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dark-muted)', fontSize: '0.75rem' }}>
