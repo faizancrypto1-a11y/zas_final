@@ -1,18 +1,6 @@
 /* ==========================================================================
    HEADER STYLING
    ========================================================================== */
-.offer-bar {
-  background-color: var(--bg-dark);
-  color: var(--primary);
-  font-family: 'Outfit', sans-serif;
-  font-weight: 700;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 8px 0;
-  text-align: center;
-}
-
 .main-header {
   background-color: var(--bg-light-card);
   border-bottom: 1px solid var(--bg-light-border);

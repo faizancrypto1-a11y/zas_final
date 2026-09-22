@@ -60,11 +60,6 @@ const Header = () => {
 
   return (
     <>
-      {/* 1. TOP OFFER BAR */}
-      <div className="offer-bar">
-        🏏 SHIPPED ALL OVER INDIA | CASH ON DELIVERY AVAILABLE | 7 DAYS EASY RETURN & EXCHANGE 🏏
-      </div>
-
       <header className="main-header">
         <div className="container">
           {/* 2. MAIN HEADER ROW (DESKTOP) */}
