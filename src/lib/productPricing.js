@@ -127,6 +127,40 @@ export function generateCombinationsFromOptions(options = [], existingCombinatio
 }
 
 /**
+ * Extract normalized option groups for a product,
+ * supporting both modern variants.options and legacy variant fields.
+ *
+ * @param {Object} product
+ * @returns {Array<{ key: string, label: string, values: string[] }>}
+ */
+export function getProductOptions(product) {
+  if (!product || !product.variants) return [];
+  const v = product.variants;
+
+  if (Array.isArray(v.options) && v.options.length > 0) {
+    return v.options.filter(opt => opt && opt.key && Array.isArray(opt.values) && opt.values.length > 0);
+  }
+
+  const legacy = [];
+  if (Array.isArray(v.sizes) && v.sizes.length > 0) {
+    legacy.push({ key: 'size', label: 'Size', values: v.sizes });
+  }
+  if (Array.isArray(v.colors) && v.colors.length > 0) {
+    legacy.push({ key: 'color', label: 'Color', values: v.colors });
+  }
+  if (Array.isArray(v.handOrientations) && v.handOrientations.length > 0) {
+    legacy.push({ key: 'handOrientation', label: 'Play Hand Orientation', values: v.handOrientations });
+  }
+  if (Array.isArray(v.batWoodTypes) && v.batWoodTypes.length > 0) {
+    legacy.push({ key: 'batWoodType', label: 'Wood Grade', values: v.batWoodTypes });
+  }
+  if (Array.isArray(v.ballTypes) && v.ballTypes.length > 0) {
+    legacy.push({ key: 'ballType', label: 'Ball Core Type', values: v.ballTypes });
+  }
+  return legacy;
+}
+
+/**
  * Check if a product has priced variants (new structure or legacy sizePrices)
  */
 export function hasPricedVariants(product) {
@@ -317,8 +351,8 @@ export function resolveAuthoritativeItemPricing(product, selectedVariant) {
     return { success: false, error: 'Product not found.' };
   }
 
-  if (!product.isActive) {
-    return { success: false, error: `Product '${product.name}' is no longer available for purchase.` };
+  if (product.isActive === false) {
+    return { success: false, error: `Product '${product.name || 'Selected product'}' is no longer available for purchase.` };
   }
 
   const hasVariants = hasPricedVariants(product);

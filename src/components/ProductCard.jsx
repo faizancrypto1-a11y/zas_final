@@ -1,9 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Star, Heart, ShoppingBag } from 'lucide-react';
 import InlineSVG from './InlineSVG';
 import { formatINR } from 'src/lib/currency';
+import { getProductPricingSummary } from 'src/lib/productPricing';
 
 const ProductCard = ({
   product, 
@@ -11,6 +13,8 @@ const ProductCard = ({
   onWishlistToggle = () => {}, 
   onAddToCart = () => {} 
 }) => {
+  const router = useRouter();
+
   if (!product) return null;
 
   const {
@@ -34,6 +38,12 @@ const ProductCard = ({
   const hasImage = images && images.length > 0;
   const isOutOfStock = stock <= 0;
 
+  const pricing = getProductPricingSummary(product);
+  const displayPrice = pricing.displayPrice;
+  const displayMrp = pricing.displayMrp;
+  const displayDiscount = pricing.discount;
+  const isFromPrice = pricing.hasVariants && pricing.isPriceRange;
+
   const handleWishlistClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -44,7 +54,11 @@ const ProductCard = ({
     e.preventDefault();
     e.stopPropagation();
     if (!isOutOfStock) {
-      onAddToCart(product);
+      if (pricing.hasVariants) {
+        router.push(`/product/${slug}`);
+      } else {
+        onAddToCart(product);
+      }
     }
   };
 
@@ -62,8 +76,8 @@ const ProductCard = ({
               <span className="badge badge-featured">Bestseller</span>
             ) : isNewArrival ? (
               <span className="badge badge-new">New</span>
-            ) : discount >= 20 ? (
-              <span className="badge badge-sale">{discount}% Off</span>
+            ) : displayDiscount >= 20 ? (
+              <span className="badge badge-sale">{displayDiscount}% Off</span>
             ) : null}
           </div>
 
@@ -102,11 +116,13 @@ const ProductCard = ({
           </div>
 
           <div className="product-price-row">
-            <span className="price-sale">{formatINR(price)}</span>
-            {mrp > price && (
+            <span className="price-sale">
+              {isFromPrice ? 'From ' : ''}{formatINR(displayPrice)}
+            </span>
+            {displayMrp > displayPrice && (
               <>
-                <span className="price-mrp">{formatINR(mrp)}</span>
-                <span className="price-discount">-{discount}%</span>
+                <span className="price-mrp">{formatINR(displayMrp)}</span>
+                <span className="price-discount">-{displayDiscount}%</span>
               </>
             )}
           </div>
@@ -126,7 +142,7 @@ const ProductCard = ({
                 className="btn btn-primary btn-sm btn-full"
                 onClick={handleCartClick}
               >
-                <ShoppingBag size={14} /> Add to Cart
+                <ShoppingBag size={14} /> {pricing.hasVariants ? 'Select Options' : 'Add to Cart'}
               </button>
             )}
           </div>

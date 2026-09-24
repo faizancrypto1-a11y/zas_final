@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ShieldCheck, Truck, CreditCard, Banknote, ArrowRight } from 'lucide-react';
 import { useStore } from 'src/context/StoreContext';
 import { formatINR } from 'src/lib/currency';
+import { getVariantPricing, extractCleanAttributes, getCartItemKey } from 'src/lib/productPricing';
 
 const CheckoutContent = () => {
   const router = useRouter();
@@ -77,9 +78,16 @@ const CheckoutContent = () => {
     }
   }, [user, cart]);
 
+  const calculateCartSubtotal = () => {
+    return cart.reduce((total, item) => {
+      const pricing = getVariantPricing(item.product, item.selectedVariant);
+      return total + (pricing.sellingPrice * item.quantity);
+    }, 0);
+  };
+
   const validateUrlCoupon = async () => {
     try {
-      const sub = cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
+      const sub = calculateCartSubtotal();
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,7 +107,7 @@ const CheckoutContent = () => {
     }
   };
 
-  const subtotal = cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
+  const subtotal = calculateCartSubtotal();
 
   let discountAmount = 0;
   if (appliedCoupon) {
@@ -116,12 +124,15 @@ const CheckoutContent = () => {
 
   const buildOrderPayload = () => {
     const payload = {
-      orderItems: cart.map(item => ({
-        product: item.product.id || item.product._id,
-        price: item.product.price,
-        quantity: item.quantity,
-        selectedVariant: item.selectedVariant
-      })),
+      orderItems: cart.map(item => {
+        const pricing = getVariantPricing(item.product, item.selectedVariant);
+        return {
+          product: item.product.id || item.product._id,
+          price: pricing.sellingPrice,
+          quantity: item.quantity,
+          selectedVariant: item.selectedVariant
+        };
+      }),
       shippingAddress: { fullName, addressLine, city, state, pincode, phone },
       paymentMethod,
       couponCode: appliedCoupon ? appliedCoupon.code : ''
@@ -403,14 +414,21 @@ const CheckoutContent = () => {
           <h3 className="summary-title">Order Items</h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--bg-light-border)', paddingBottom: '15px' }}>
-            {cart.map((item, idx) => (
-              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <span style={{ color: 'var(--text-dark-muted)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.product.name} {item.selectedVariant?.size ? <strong style={{ color: 'var(--text-dark)' }}>({item.selectedVariant.size})</strong> : ''} <strong>x{item.quantity}</strong>
-                </span>
-                <span style={{ fontWeight: 600 }}>{formatINR(item.product.price * item.quantity)}</span>
-              </div>
-            ))}
+            {cart.map((item, idx) => {
+              const pricing = getVariantPricing(item.product, item.selectedVariant);
+              const cleanAttrs = extractCleanAttributes(item.selectedVariant);
+              const variantDesc = Object.values(cleanAttrs).join(' / ');
+              const itemKey = getCartItemKey(item.product?.id || item.product?._id || idx, item.selectedVariant);
+
+              return (
+                <div key={itemKey} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-dark-muted)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.product.name} {variantDesc ? <strong style={{ color: 'var(--text-dark)' }}>({variantDesc})</strong> : ''} <strong>x{item.quantity}</strong>
+                  </span>
+                  <span style={{ fontWeight: 600 }}>{formatINR(pricing.sellingPrice * item.quantity)}</span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="summary-row">

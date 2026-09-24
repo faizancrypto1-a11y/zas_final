@@ -21,6 +21,7 @@ import { useStore } from 'src/context/StoreContext';
 import ProductCard from 'src/components/ProductCard';
 import InlineSVG from 'src/components/InlineSVG';
 import { formatINR } from 'src/lib/currency';
+import { getProductOptions, resolveSelectedVariant } from 'src/lib/productPricing';
 
 const ProductDetailPage = () => {
   const router = useRouter();
@@ -35,11 +36,7 @@ const ProductDetailPage = () => {
 
   // Gallery and configuration states
   const [activeImgIndex, setActiveImgIndex] = useState(0);
-  const [selectedSize, setSelectedSize] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
-  const [selectedHand, setSelectedHand] = useState('');
-  const [selectedWood, setSelectedWood] = useState('');
-  const [selectedBall, setSelectedBall] = useState('');
+  const [selectedOptions, setSelectedOptions] = useState({});
   const [quantity, setQuantity] = useState(1);
   const [pinInput, setPinInput] = useState('');
   const [pinCheckStatus, setPinCheckStatus] = useState(null); // null, 'checking', 'valid', 'invalid'
@@ -71,11 +68,20 @@ const ProductDetailPage = () => {
           setProduct(currentProd);
           
           // Pre-select first variant options if available
-          if (currentProd.variants?.sizes?.length > 0) setSelectedSize(currentProd.variants.sizes[0]);
-          if (currentProd.variants?.colors?.length > 0) setSelectedColor(currentProd.variants.colors[0]);
-          if (currentProd.variants?.handOrientations?.length > 0) setSelectedHand(currentProd.variants.handOrientations[0]);
-          if (currentProd.variants?.batWoodTypes?.length > 0) setSelectedWood(currentProd.variants.batWoodTypes[0]);
-          if (currentProd.variants?.ballTypes?.length > 0) setSelectedBall(currentProd.variants.ballTypes[0]);
+          const options = getProductOptions(currentProd);
+          const initial = {};
+          if (currentProd.variants?.combinations?.length > 0) {
+            const firstComb = currentProd.variants.combinations.find(c => c && c.mrp > 0) || currentProd.variants.combinations[0];
+            if (firstComb && firstComb.attributes) {
+              Object.assign(initial, firstComb.attributes);
+            }
+          }
+          options.forEach(opt => {
+            if (!initial[opt.key] && opt.values?.length > 0) {
+              initial[opt.key] = opt.values[0];
+            }
+          });
+          setSelectedOptions(initial);
           
           // Fetch reviews
           fetchProductReviews(currentProd.id || currentProd._id);
@@ -133,48 +139,43 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Cart configuration assembler
-  const getSelectedVariants = () => {
-    const vars = {};
-    if (product.variants?.sizes?.length > 0) vars.size = selectedSize;
-    if (product.variants?.colors?.length > 0) vars.color = selectedColor;
-    if (product.variants?.handOrientations?.length > 0) vars.handOrientation = selectedHand;
-    if (product.variants?.batWoodTypes?.length > 0) vars.batWoodType = selectedWood;
-    if (product.variants?.ballTypes?.length > 0) vars.ballType = selectedBall;
-    return vars;
+  // Dynamic Options list
+  const variantOptions = getProductOptions(product);
+
+  // Authoritative variant pricing resolution on client
+  const resolvedPricing = resolveSelectedVariant(product, selectedOptions);
+  const effective = {
+    price: resolvedPricing.sellingPrice,
+    mrp: resolvedPricing.mrp,
+    discount: resolvedPricing.discount,
+    matched: resolvedPricing.matched,
+    variantId: resolvedPricing.variantId,
+    attributes: resolvedPricing.attributes || selectedOptions
   };
 
-  // Compute effective price/MRP/discount for the currently selected size
-  // sizePrices values can be either a plain number (just price) or an object { price, mrp }
-  const getEffectivePrice = () => {
-    if (!product) return { price: 0, mrp: 0 };
-    const base = { price: product.price, mrp: product.mrp };
-    if (!selectedSize || !product.variants?.sizePrices) return base;
-
-    const sp = product.variants.sizePrices[selectedSize];
-    if (sp == null) return base;
-
-    if (typeof sp === 'number') {
-      return { price: sp, mrp: base.mrp };
-    }
-
-    return {
-      price: sp.price != null ? sp.price : base.price,
-      mrp: sp.mrp != null ? sp.mrp : base.mrp,
-    };
-  };
-  const effective = getEffectivePrice();
+  const allOptionsSelected = variantOptions.every(
+    opt => selectedOptions[opt.key] != null && String(selectedOptions[opt.key]).trim() !== ''
+  );
+  const isVariantAvailable = variantOptions.length === 0 || (allOptionsSelected && effective.matched);
 
   const handleAddToCart = () => {
-    if (product.stock <= 0) return;
+    if (product.stock <= 0 || !isVariantAvailable) return;
+    const selectedVariantPayload = {
+      ...(effective.variantId ? { variantId: effective.variantId } : {}),
+      ...selectedOptions
+    };
     const pricedProduct = { ...product, price: effective.price, mrp: effective.mrp };
-    addToCart(pricedProduct, getSelectedVariants(), quantity);
+    addToCart(pricedProduct, selectedVariantPayload, quantity);
   };
 
   const handleBuyNow = () => {
-    if (product.stock <= 0) return;
+    if (product.stock <= 0 || !isVariantAvailable) return;
+    const selectedVariantPayload = {
+      ...(effective.variantId ? { variantId: effective.variantId } : {}),
+      ...selectedOptions
+    };
     const pricedProduct = { ...product, price: effective.price, mrp: effective.mrp };
-    addToCart(pricedProduct, getSelectedVariants(), quantity, { silent: true });
+    addToCart(pricedProduct, selectedVariantPayload, quantity, { silent: true });
     router.push('/cart');
   };
 
@@ -236,7 +237,8 @@ const ProductDetailPage = () => {
   }
 
   const isOutOfStock = product.stock <= 0;
-  const whatsappMessage = `Hi, I am interested in purchasing the *${product.name}* (SKU: ${product.sku}) listed for ${formatINR(effective.price)} on your store. Is it available?`;
+  const selectedSummary = Object.values(selectedOptions).filter(Boolean).join(' / ');
+  const whatsappMessage = `Hi, I am interested in purchasing the *${product.name}*${selectedSummary ? ` (${selectedSummary})` : ''} (SKU: ${product.sku}) listed for ${formatINR(effective.price)} on your store. Is it available?`;
   const whatsappUrl = `https://wa.me/918860654659?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
@@ -313,87 +315,29 @@ const ProductDetailPage = () => {
             {effective.mrp > effective.price && (
               <>
                 <span className="detail-mrp">{formatINR(effective.mrp)}</span>
-                <span className="detail-discount">{Math.round(((effective.mrp - effective.price) / effective.mrp) * 100)}% Off</span>
+                <span className="detail-discount">{effective.discount}% Off</span>
               </>
             )}
           </div>
 
           {/* VARIANTS CONFIGURATION */}
-          {/* Size Variant */}
-          {product.variants?.sizes?.length > 0 && (
-            <div className="detail-variants">
-              <h4>Select Size</h4>
+          {variantOptions.map(opt => (
+            <div key={opt.key} className="detail-variants">
+              <h4>Select {opt.label || opt.key}</h4>
               <div className="variant-chips">
-                {product.variants.sizes.map(sz => (
+                {opt.values.map(val => (
                   <button 
-                    key={sz} 
+                    key={val} 
                     type="button" 
-                    className={`variant-chip ${selectedSize === sz ? 'active' : ''}`}
-                    onClick={() => setSelectedSize(sz)}
+                    className={`variant-chip ${selectedOptions[opt.key] === val ? 'active' : ''}`}
+                    onClick={() => setSelectedOptions(prev => ({ ...prev, [opt.key]: val }))}
                   >
-                    {sz}
+                    {val}
                   </button>
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Hand Orientation Variant */}
-          {product.variants?.handOrientations?.length > 0 && (
-            <div className="detail-variants">
-              <h4>Play Hand Orientation</h4>
-              <div className="variant-chips">
-                {product.variants.handOrientations.map(hand => (
-                  <button 
-                    key={hand} 
-                    type="button" 
-                    className={`variant-chip ${selectedHand === hand ? 'active' : ''}`}
-                    onClick={() => setSelectedHand(hand)}
-                  >
-                    {hand}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Bat Wood Type Variant */}
-          {product.variants?.batWoodTypes?.length > 0 && (
-            <div className="detail-variants">
-              <h4>Wood Grade</h4>
-              <div className="variant-chips">
-                {product.variants.batWoodTypes.map(wd => (
-                  <button 
-                    key={wd} 
-                    type="button" 
-                    className={`variant-chip ${selectedWood === wd ? 'active' : ''}`}
-                    onClick={() => setSelectedWood(wd)}
-                  >
-                    {wd}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Ball Type Variant */}
-          {product.variants?.ballTypes?.length > 0 && (
-            <div className="detail-variants">
-              <h4>Ball Core Type</h4>
-              <div className="variant-chips">
-                {product.variants.ballTypes.map(bl => (
-                  <button 
-                    key={bl} 
-                    type="button" 
-                    className={`variant-chip ${selectedBall === bl ? 'active' : ''}`}
-                    onClick={() => setSelectedBall(bl)}
-                  >
-                    {bl}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
 
           {/* Quantity Selector */}
           <div className="detail-variants">
@@ -448,15 +392,15 @@ const ProductDetailPage = () => {
               type="button" 
               className="btn btn-primary"
               onClick={handleAddToCart}
-              disabled={isOutOfStock}
+              disabled={isOutOfStock || !isVariantAvailable}
             >
-              <ShoppingBag size={18} /> Add to Cart
+              <ShoppingBag size={18} /> {isOutOfStock ? 'Out of Stock' : !allOptionsSelected ? 'Select Options' : !effective.matched ? 'Unavailable' : 'Add to Cart'}
             </button>
             <button 
               type="button" 
               className="btn btn-accent"
               onClick={handleBuyNow}
-              disabled={isOutOfStock}
+              disabled={isOutOfStock || !isVariantAvailable}
             >
               Buy Now
             </button>

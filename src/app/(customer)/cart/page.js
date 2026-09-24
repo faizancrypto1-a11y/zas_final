@@ -24,8 +24,11 @@ const CartPage = () => {
   const [couponSuccess, setCouponSuccess] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null); // { code, discountType, discountValue, discountAmount }
 
-  // 1. Calculations
-  const subtotal = cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
+  // 1. Calculations using exact variant selling price
+  const subtotal = cart.reduce((total, item) => {
+    const pricing = getVariantPricing(item.product, item.selectedVariant);
+    return total + (pricing.sellingPrice * item.quantity);
+  }, 0);
   
   // Calculate dynamic coupon discount amount
   let discountAmount = 0;
@@ -120,79 +123,99 @@ const CartPage = () => {
       <div className="cart-layout">
         {/* Items List */}
         <div className="cart-items">
-          {cart.map((item, idx) => (
-            <div key={idx} className="cart-item">
-              <div className="cart-item-img">
-                {item.product.images && item.product.images.length > 0 ? (
-                  <img src={item.product.images[0]} alt={item.product.name} />
-                ) : (
-                  <InlineSVG type={item.product.category} />
-                )}
-              </div>
+          {cart.map((item, idx) => {
+            const pricing = getVariantPricing(item.product, item.selectedVariant);
+            const cleanAttrs = extractCleanAttributes(item.selectedVariant);
+            const itemKey = getCartItemKey(item.product?.id || item.product?._id || idx, item.selectedVariant);
 
-              <div className="cart-item-details">
-                <div>
-                  <h3 className="cart-item-title">
-                    <Link href={`/product/${item.product.slug}`}>{item.product.name}</Link>
-                  </h3>
-                  
-                  {/* Selected Variants display */}
-                  {item.selectedVariant && Object.keys(item.selectedVariant).length > 0 && (
-                    <div className="cart-item-variant">
-                      {Object.entries(item.selectedVariant).map(([key, value]) => (
-                        <span key={key} style={{ marginRight: '10px' }}>
-                          <strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {value}
-                        </span>
-                      ))}
-                    </div>
+            return (
+              <div key={itemKey} className="cart-item">
+                <div className="cart-item-img">
+                  {item.product.images && item.product.images.length > 0 ? (
+                    <img src={item.product.images[0]} alt={item.product.name} />
+                  ) : (
+                    <InlineSVG type={item.product.category} />
                   )}
                 </div>
 
-                <div className="cart-item-actions">
-                  <div style={{ display: 'flex', gap: '15px' }}>
-                    <button 
-                      type="button" 
-                      className="cart-remove-btn"
-                      onClick={() => removeFromCart(item.product.id || item.product._id, item.selectedVariant)}
-                    >
-                      <Trash2 size={14} /> Remove
-                    </button>
-                    <button 
-                      type="button" 
-                      style={{ fontSize: '0.8rem', color: 'var(--text-dark-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      onClick={() => handleMoveToWishlist(item.product.id || item.product._id, item.selectedVariant)}
-                    >
-                      <Heart size={14} /> Move to Wishlist
-                    </button>
+                <div className="cart-item-details">
+                  <div>
+                    <h3 className="cart-item-title">
+                      <Link href={`/product/${item.product.slug}`}>{item.product.name}</Link>
+                    </h3>
+                    
+                    {/* Selected Variants display */}
+                    {Object.keys(cleanAttrs).length > 0 && (
+                      <div className="cart-item-variant">
+                        {Object.entries(cleanAttrs).map(([key, value]) => (
+                          <span key={key} style={{ marginRight: '10px' }}>
+                            <strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Quantity controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div className="qty-selector" style={{ border: '1px solid var(--bg-light-border)' }}>
+                  <div className="cart-item-actions">
+                    <div style={{ display: 'flex', gap: '15px' }}>
                       <button 
                         type="button" 
-                        className="qty-btn" 
-                        style={{ padding: '4px 10px' }}
-                        onClick={() => updateCartQty(item.product.id || item.product._id, item.selectedVariant, item.quantity - 1)}
+                        className="cart-remove-btn"
+                        onClick={() => removeFromCart(item.product.id || item.product._id, item.selectedVariant)}
                       >
-                        -
+                        <Trash2 size={14} /> Remove
                       </button>
-                      <span className="qty-input" style={{ width: '30px' }}>{item.quantity}</span>
                       <button 
                         type="button" 
-                        className="qty-btn" 
-                        style={{ padding: '4px 10px' }}
-                        onClick={() => updateCartQty(item.product.id || item.product._id, item.selectedVariant, item.quantity + 1)}
+                        style={{ fontSize: '0.8rem', color: 'var(--text-dark-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => handleMoveToWishlist(item.product.id || item.product._id, item.selectedVariant)}
                       >
-                        +
+                        <Heart size={14} /> Move to Wishlist
                       </button>
                     </div>
-                    <span className="cart-item-price">{formatINR(item.product.price * item.quantity)}</span>
+
+                    {/* Quantity controls & Variant Pricing */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <div className="qty-selector" style={{ border: '1px solid var(--bg-light-border)' }}>
+                        <button 
+                          type="button" 
+                          className="qty-btn" 
+                          style={{ padding: '4px 10px' }}
+                          onClick={() => updateCartQty(item.product.id || item.product._id, item.selectedVariant, item.quantity - 1)}
+                        >
+                          -
+                        </button>
+                        <span className="qty-input" style={{ width: '30px' }}>{item.quantity}</span>
+                        <button 
+                          type="button" 
+                          className="qty-btn" 
+                          style={{ padding: '4px 10px' }}
+                          onClick={() => updateCartQty(item.product.id || item.product._id, item.selectedVariant, item.quantity + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <span className="cart-item-price" style={{ display: 'block' }}>
+                          {formatINR(pricing.sellingPrice * item.quantity)}
+                        </span>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-dark-muted)', marginTop: '2px', display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                          <span>{formatINR(pricing.sellingPrice)}</span>
+                          {pricing.mrp > pricing.sellingPrice && (
+                            <>
+                              <span style={{ textDecoration: 'line-through' }}>MRP {formatINR(pricing.mrp)}</span>
+                              <span style={{ color: 'var(--success)', fontWeight: 600 }}>{pricing.discount}% Off</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Order Summary box */}
