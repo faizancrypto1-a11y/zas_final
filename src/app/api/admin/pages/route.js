@@ -1,6 +1,26 @@
 import { NextResponse } from 'next/server';
 import { prisma } from 'src/lib/prisma';
 import { verifyAdmin } from 'src/lib/auth';
+import { CANONICAL_POLICIES } from 'src/lib/policies';
+
+async function ensureCanonicalPolicies() {
+  try {
+    const existing = await prisma.page.findMany({ select: { slug: true } });
+    const existingSlugs = new Set(existing.map(p => p.slug));
+    const missing = CANONICAL_POLICIES.filter(p => !existingSlugs.has(p.slug));
+    for (const policy of missing) {
+      await prisma.page.create({
+        data: {
+          title: policy.title,
+          slug: policy.slug,
+          content: policy.content,
+        }
+      }).catch(() => null);
+    }
+  } catch (err) {
+    console.warn('ensureCanonicalPolicies error:', err?.message);
+  }
+}
 
 export async function GET(request) {
   try {
@@ -13,9 +33,12 @@ export async function GET(request) {
       );
     }
 
+    await ensureCanonicalPolicies();
+
     const pages = await prisma.page.findMany({
       orderBy: { title: 'asc' }
     });
+
 
     return NextResponse.json({
       success: true,

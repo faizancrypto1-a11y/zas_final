@@ -13,10 +13,6 @@ const PagesManagement = () => {
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchPages();
-  }, []);
-
   const fetchPages = async () => {
     try {
       setLoading(true);
@@ -25,12 +21,35 @@ const PagesManagement = () => {
       if (res.ok && data.success) {
         setPages(data.pages);
       }
-      setLoading(false);
     } catch (err) {
       console.log('Error loading pages:', err);
+    } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/admin/pages');
+        const data = await res.json();
+        if (!ignore && res.ok && data.success) {
+          setPages(data.pages);
+        }
+      } catch (err) {
+        console.log('Error loading pages:', err);
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleOpenEdit = (page) => {
     setSelectedPage(page);
@@ -48,7 +67,7 @@ const PagesManagement = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: selectedPage._id,
+          id: selectedPage.id || selectedPage._id,
           title,
           content
         })
@@ -85,7 +104,7 @@ const PagesManagement = () => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
           {pages.map(page => (
-            <div key={page._id} className="admin-card" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div key={page.id || page._id || page.slug} className="admin-card" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <FileText size={20} style={{ color: 'var(--primary)' }} />
                 <h4 style={{ color: 'white', fontFamily: 'Outfit', fontSize: '1.05rem' }}>{page.title}</h4>

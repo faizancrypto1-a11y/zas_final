@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && node scripts/create-admin.mjs && node scripts/sync-categories.mjs && next build",
+    "build": "prisma generate && prisma migrate deploy && node scripts/create-admin.mjs && node scripts/sync-categories.mjs && node scripts/sync-policies.mjs && next build",
     "start": "next start",
     "lint": "eslint"
   },

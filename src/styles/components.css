@@ -475,6 +475,35 @@
   gap: 15px;
 }
 
+.footer-designer-credit {
+  font-size: 0.8rem;
+  color: var(--text-light-muted);
+  margin: 0;
+}
+
+.footer-designer-credit a {
+  color: var(--text-light);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgba(248, 250, 252, 0.35);
+  text-underline-offset: 3px;
+  transition: var(--transition);
+}
+
+.footer-designer-credit a:hover {
+  color: var(--primary-light);
+  text-decoration-color: var(--primary-light);
+}
+
+@media (max-width: 768px) {
+  .footer-bottom {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+}
+
+
 /* ==========================================================================
    ADMIN SIDEBAR STYLING
    ========================================================================== */

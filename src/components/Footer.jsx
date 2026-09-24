@@ -153,6 +153,24 @@ const Footer = () => {
         {/* Footer Bottom copyright row */}
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} Zassports. All Rights Reserved. Built for Cricket Enthusiasts.</p>
+          <p className="footer-designer-credit">
+            Designed by{' '}
+            <a
+              href="https://www.joinscaleflow.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Scale Flow
+            </a>
+            {' / '}
+            <a
+              href="https://rankzio.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Rank Zio
+            </a>
+          </p>
           <div style={{ display: 'flex', gap: '15px' }}>
             <Link href="/policies/privacy-policy">Privacy</Link>
             <span>&bull;</span>
