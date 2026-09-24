@@ -153,6 +153,7 @@ const Footer = () => {
         {/* Footer Bottom copyright row */}
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} Zassports. All Rights Reserved. Built for Cricket Enthusiasts.</p>
+          {/* Website Designer Credits */}
           <p className="footer-designer-credit">
             Designed by{' '}
             <a
