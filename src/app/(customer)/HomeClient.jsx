@@ -35,13 +35,13 @@ const HomeClient = ({ sections = {}, categories = [] }) => {
     {
       title: 'Zassports Cricket Arena',
       subtitle: 'Unleash your true potential with professional English Willow bats and custom protective gear.',
-      image: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?q=80&w=1200',
+      image: '/images/hero/cricket-bats-hero.jpg',
       link: '/shop?category=cricket-bats'
     },
     {
       title: 'Premium Cricket Leather Balls',
       subtitle: 'Alum-tanned hand-stitched four-piece leather balls for extreme seam movement and swing.',
-      image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=1200',
+      image: '/images/hero/cricket-balls-hero.jpg',
       link: '/shop?category=cricket-balls'
     }
   ];
