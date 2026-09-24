@@ -15,12 +15,12 @@ export function slugify(text) {
 }
 
 /**
- * Round monetary value for INR currency (2 decimal places)
+ * Round monetary value for INR currency to the nearest whole rupee
  */
 export function roundINR(val) {
   const num = Number(val);
   if (isNaN(num)) return 0;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+  return Math.round(num);
 }
 
 /**
@@ -29,7 +29,7 @@ export function roundINR(val) {
  *
  * @param {number} mrp
  * @param {number} discountPercent (0 - 100)
- * @returns {number} rounded to 2 decimal places
+ * @returns {number} rounded to the nearest whole INR rupee
  */
 export function calculateDiscountedPrice(mrp, discountPercent) {
   const m = Number(mrp) || 0;

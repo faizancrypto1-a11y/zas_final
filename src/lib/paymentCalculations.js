@@ -1,24 +1,25 @@
 import { roundINR } from './productPricing.js';
 
 /**
- * Standardized payment calculation formula for ZAS SPORTS
+ * Standardized payment calculation formula for ZAS SPORTS (Whole INR Rupee pricing)
  *
  * Rules:
  * 1. Online / Prepaid:
  *    baseTotal = subtotal - couponDiscount + shipping
- *    prepaidDiscountAmount = roundINR(baseTotal * 0.025)
- *    finalOnlineAmount = roundINR(baseTotal - prepaidDiscountAmount)
+ *    prepaidDiscountAmount = roundINR(baseTotal * 0.025) (Whole INR rupee)
+ *    finalOnlineAmount = roundINR(baseTotal - prepaidDiscountAmount) (Whole INR rupee)
  *    totalAmount = finalOnlineAmount
  *    amountPaid = finalOnlineAmount
  *    amountDue = 0
  *
  * 2. Cash on Delivery (COD):
  *    fullCodOrderTotal = subtotal - couponDiscount + shipping
- *    codAdvanceAmount = roundINR(fullCodOrderTotal * 0.10)
- *    codDueAmount = roundINR(fullCodOrderTotal - codAdvanceAmount)
+ *    codAdvanceAmount = roundINR(fullCodOrderTotal * 0.10) (Whole INR rupee)
+ *    codDueAmount = roundINR(fullCodOrderTotal - codAdvanceAmount) (Whole INR rupee)
  *    totalAmount = fullCodOrderTotal (IMPORTANT: remains full order value)
  *    amountPaid = codAdvanceAmount (10% advance paid online)
  *    amountDue = codDueAmount (remaining 90% due on delivery)
+ *    Guarantee: amountPaid + amountDue === totalAmount exactly
  *
  * @param {Object} params
  * @param {number} params.subtotal - Authoritative subtotal
