@@ -14,15 +14,7 @@ const TrackOrderContent = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Auto trigger tracking if orderId is in URL parameters
-  useEffect(() => {
-    if (orderIdParam) {
-      setOrderId(orderIdParam);
-      handleTrackOrder(orderIdParam);
-    }
-  }, [orderIdParam]);
-
-  const handleTrackOrder = async (searchId) => {
+  const handleTrackOrder = useCallback(async (searchId) => {
     if (!searchId) return;
 
     try {
@@ -44,7 +36,18 @@ const TrackOrderContent = () => {
       setError('Network error searching for order details.');
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Auto trigger tracking if orderId is in URL parameters
+  useEffect(() => {
+    if (orderIdParam) {
+      const timer = setTimeout(() => {
+        setOrderId(orderIdParam);
+        handleTrackOrder(orderIdParam);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [orderIdParam, handleTrackOrder]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -192,10 +195,28 @@ const TrackOrderContent = () => {
                   <span>Shipping Fees</span>
                   <span>{order.shippingPrice === 0 ? 'FREE' : formatINR(order.shippingPrice)}</span>
                 </div>
+                {order.prepaidDiscountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}>
+                    <span>Prepaid Discount (2.5%)</span>
+                    <span>-{formatINR(order.prepaidDiscountAmount)}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', borderTop: '1px solid var(--bg-light-border)', paddingTop: '10px' }}>
                   <span>Total Amount</span>
                   <span>{formatINR(order.totalAmount)}</span>
                 </div>
+                {order.paymentMethod === 'COD' && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d' }}>
+                      <span>Advance Paid</span>
+                      <span>{formatINR(order.amountPaid || order.codAdvanceAmount || (order.totalAmount * 0.10))}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309', fontWeight: 600 }}>
+                      <span>Due on Delivery</span>
+                      <span>{formatINR(order.amountDue || (order.totalAmount - (order.amountPaid || order.codAdvanceAmount || (order.totalAmount * 0.10))))}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 

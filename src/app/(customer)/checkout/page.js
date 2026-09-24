@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ShieldCheck, Truck, CreditCard, Banknote, ArrowRight } from 'lucide-react';
+import { ShieldCheck, CreditCard, Banknote, ArrowRight, Tag, Percent } from 'lucide-react';
 import { useStore } from 'src/context/StoreContext';
 import { formatINR } from 'src/lib/currency';
 import { getVariantPricing, extractCleanAttributes, getCartItemKey } from 'src/lib/productPricing';
+import { calculatePaymentBreakdown } from 'src/lib/paymentCalculations';
 
 const CheckoutContent = () => {
   const router = useRouter();
@@ -25,14 +26,17 @@ const CheckoutContent = () => {
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
 
-  const [paymentMethod, setPaymentMethod] = useState('COD');
+  // Default to Online or COD
+  const [paymentMethod, setPaymentMethod] = useState('Online');
   const [placingOrder, setPlacingOrder] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   const orderCompletedRef = useRef(false);
   const orderPayloadRef = useRef(null);
+  const userLoadedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -51,52 +55,26 @@ const CheckoutContent = () => {
     };
   }, []);
 
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-
-  useEffect(() => {
-    if (orderCompletedRef.current) return;
-    if (cart.length === 0) {
-      router.push('/cart');
-      return;
-    }
-    if (user) {
-      setFullName(user.name);
-      setGuestName(user.name);
-      setGuestEmail(user.email);
-      const defaultAddr = user.addresses?.find(addr => addr.isDefault) || user.addresses?.[0];
-      if (defaultAddr) {
-        setFullName(defaultAddr.fullName || user.name);
-        setAddressLine(defaultAddr.addressLine || '');
-        setCity(defaultAddr.city || '');
-        setState(defaultAddr.state || '');
-        setPincode(defaultAddr.pincode || '');
-        setPhone(defaultAddr.phone || '');
-      }
-    }
-    if (couponParam) {
-      validateUrlCoupon();
-    }
-  }, [user, cart]);
-
-  const calculateCartSubtotal = () => {
+  const calculateCartSubtotal = useCallback(() => {
     return cart.reduce((total, item) => {
       const pricing = getVariantPricing(item.product, item.selectedVariant);
       return total + (pricing.sellingPrice * item.quantity);
     }, 0);
-  };
+  }, [cart]);
 
-  const validateUrlCoupon = async () => {
+  const validateUrlCoupon = useCallback(async (code) => {
+    if (!code) return;
     try {
       const sub = calculateCartSubtotal();
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: couponParam, subtotal: sub })
+        body: JSON.stringify({ code, subtotal: sub })
       });
       const data = await res.json();
       if (data.success) {
         setAppliedCoupon({
-          code: couponParam.toUpperCase(),
+          code: code.toUpperCase(),
           discountType: data.discountType,
           discountValue: data.discountValue,
           discountAmount: data.discountAmount
@@ -105,7 +83,44 @@ const CheckoutContent = () => {
     } catch (err) {
       console.log('Error validating URL coupon:', err);
     }
-  };
+  }, [calculateCartSubtotal]);
+
+  // Handle redirects and user address pre-fill
+  useEffect(() => {
+    if (orderCompletedRef.current) return;
+    if (cart.length === 0) {
+      router.push('/cart');
+      return;
+    }
+
+    if (user && !userLoadedRef.current) {
+      userLoadedRef.current = true;
+      const defaultAddr = user.addresses?.find(addr => addr.isDefault) || user.addresses?.[0];
+      const timer = setTimeout(() => {
+        setFullName(defaultAddr?.fullName || user.name || '');
+        setGuestName(user.name || '');
+        setGuestEmail(user.email || '');
+        if (defaultAddr) {
+          setAddressLine(defaultAddr.addressLine || '');
+          setCity(defaultAddr.city || '');
+          setState(defaultAddr.state || '');
+          setPincode(defaultAddr.pincode || '');
+          setPhone(defaultAddr.phone || '');
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [user, cart, router]);
+
+  // Validate coupon from URL once
+  useEffect(() => {
+    if (couponParam) {
+      const timer = setTimeout(() => {
+        validateUrlCoupon(couponParam);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [couponParam, validateUrlCoupon]);
 
   const subtotal = calculateCartSubtotal();
 
@@ -118,9 +133,16 @@ const CheckoutContent = () => {
     }
   }
 
-  const freeShippingThreshold = settings.freeShippingMinAmount || 100;
-  const shippingCharges = subtotal >= freeShippingThreshold ? 0 : (settings.shippingCharges || 10);
-  const totalAmount = subtotal - discountAmount + shippingCharges;
+  const freeShippingThreshold = settings?.freeShippingMinAmount ?? 100;
+  const shippingCharges = subtotal >= freeShippingThreshold ? 0 : (settings?.shippingCharges ?? 10);
+
+  // Authoritative payment breakdown calculated using shared formula
+  const breakdown = calculatePaymentBreakdown({
+    subtotal,
+    couponDiscount: discountAmount,
+    shipping: shippingCharges,
+    paymentMethod
+  });
 
   const buildOrderPayload = () => {
     const payload = {
@@ -147,25 +169,7 @@ const CheckoutContent = () => {
     return payload;
   };
 
-  const handleCODOrder = async () => {
-    const payload = buildOrderPayload();
-    const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success && data.order) {
-      orderCompletedRef.current = true;
-      clearCart();
-      router.replace('/order-success?orderId=' + data.order.orderId);
-    } else {
-      setErrorMessage(data.error || 'Failed to place order. Please try again.');
-      setPlacingOrder(false);
-    }
-  };
-
-  const handleOnlinePayment = async () => {
+  const handlePaymentFlow = async () => {
     try {
       setPlacingOrder(true);
       setErrorMessage('');
@@ -190,22 +194,30 @@ const CheckoutContent = () => {
       const { razorpayOrderId, amount, currency, keyId, prefill } = createData;
 
       if (!razorpayLoaded || typeof window.Razorpay === 'undefined') {
-        setErrorMessage('Payment gateway is loading. Please wait and try again.');
+        setErrorMessage('Payment gateway is still loading. Please wait a moment and try again.');
         setPlacingOrder(false);
         return;
       }
 
       setIsProcessingPayment(true);
 
+      const isCOD = paymentMethod === 'COD';
+      const description = isCOD
+        ? `COD 10% Advance Payment - ${formatINR(amount / 100)}`
+        : `Prepaid Order Payment - ${formatINR(amount / 100)}`;
+
       const options = {
         key: keyId,
         amount: amount,
         currency: currency,
         name: 'ZAS SPORTS',
-        description: 'Order Payment - ' + formatINR(amount / 100),
+        description,
         order_id: razorpayOrderId,
         prefill: prefill || {},
-        notes: { address: addressLine + ', ' + city + ', ' + state + ' - ' + pincode },
+        notes: {
+          address: `${addressLine}, ${city}, ${state} - ${pincode}`,
+          paymentMethod
+        },
         theme: { color: '#1a1a2e' },
         handler: async function (response) {
           try {
@@ -215,7 +227,7 @@ const CheckoutContent = () => {
               razorpay_signature: response.razorpay_signature,
               orderItems: orderPayloadRef.current ? orderPayloadRef.current.orderItems : [],
               shippingAddress: orderPayloadRef.current ? orderPayloadRef.current.shippingAddress : null,
-              paymentMethod: 'Online',
+              paymentMethod,
               couponCode: orderPayloadRef.current ? orderPayloadRef.current.couponCode : '',
               guestDetails: orderPayloadRef.current ? orderPayloadRef.current.guestDetails : null
             };
@@ -231,7 +243,7 @@ const CheckoutContent = () => {
             if (verifyRes.ok && verifyData.success) {
               orderCompletedRef.current = true;
               clearCart();
-              router.replace('/order-success?orderId=' + verifyData.orderId);
+              router.replace(`/order-success?orderId=${verifyData.orderId}`);
             } else {
               setErrorMessage(verifyData.error || 'Payment verification failed. Please contact support if amount was deducted.');
               setIsProcessingPayment(false);
@@ -256,8 +268,8 @@ const CheckoutContent = () => {
       rzp.open();
 
     } catch (err) {
-      console.error('Online payment error:', err);
-      setErrorMessage('Something went wrong. Please try again.');
+      console.error('Payment flow error:', err);
+      setErrorMessage('Something went wrong during payment initialization. Please try again.');
       setPlacingOrder(false);
       setIsProcessingPayment(false);
     }
@@ -268,14 +280,7 @@ const CheckoutContent = () => {
     if (placingOrder || isProcessingPayment) return;
 
     try {
-      setPlacingOrder(true);
-      setErrorMessage('');
-
-      if (paymentMethod === 'COD') {
-        await handleCODOrder();
-      } else {
-        await handleOnlinePayment();
-      }
+      await handlePaymentFlow();
     } catch (err) {
       console.error('Checkout submit error:', err);
       setErrorMessage('Network error completing checkout process.');
@@ -340,7 +345,7 @@ const CheckoutContent = () => {
             <h3>Delivery Address</h3>
             <div className="grid grid-2">
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                <label className="form-label">Receiver's Full Name</label>
+                <label className="form-label">Receiver&apos;s Full Name</label>
                 <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="form-control" required />
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2' }}>
@@ -369,28 +374,20 @@ const CheckoutContent = () => {
           <div className="checkout-section">
             <h3>Payment Method</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label
-                className={'form-control ' + (paymentMethod === 'COD' ? 'active' : '')}
-                style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', padding: '16px', border: paymentMethod === 'COD' ? '2px solid var(--text-dark)' : '1px solid var(--bg-light-border)' }}
-              >
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="COD"
-                  checked={paymentMethod === 'COD'}
-                  onChange={() => setPaymentMethod('COD')}
-                  style={{ width: '18px', height: '18px', accentColor: 'var(--text-dark)' }}
-                />
-                <Banknote size={20} />
-                <div>
-                  <span style={{ fontWeight: 700, display: 'block' }}>Cash on Delivery (COD)</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dark-muted)' }}>Pay in cash upon delivery at your doorstep.</span>
-                </div>
-              </label>
-
+              {/* Online Payment Option */}
               <label
                 className={'form-control ' + (paymentMethod === 'Online' ? 'active' : '')}
-                style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', padding: '16px', border: paymentMethod === 'Online' ? '2px solid var(--text-dark)' : '1px solid var(--bg-light-border)' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '15px',
+                  cursor: 'pointer',
+                  padding: '16px',
+                  border: paymentMethod === 'Online' ? '2px solid var(--primary, #0f172a)' : '1px solid var(--bg-light-border)',
+                  borderRadius: 'var(--border-radius-md)',
+                  backgroundColor: paymentMethod === 'Online' ? 'rgba(16, 185, 129, 0.04)' : 'transparent',
+                  transition: 'all 0.2s ease'
+                }}
               >
                 <input
                   type="radio"
@@ -398,12 +395,75 @@ const CheckoutContent = () => {
                   value="Online"
                   checked={paymentMethod === 'Online'}
                   onChange={() => setPaymentMethod('Online')}
-                  style={{ width: '18px', height: '18px', accentColor: 'var(--text-dark)' }}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary, #0f172a)', marginTop: '3px' }}
                 />
-                <CreditCard size={20} />
-                <div>
-                  <span style={{ fontWeight: 700, display: 'block' }}>Online Payment</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dark-muted)' }}>Pay securely using UPI, Cards, Net Banking or Wallets.</span>
+                <CreditCard size={22} style={{ color: 'var(--primary, #0f172a)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ flexGrow: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Online Payment</span>
+                    <span style={{
+                      backgroundColor: '#dcfce7',
+                      color: '#15803d',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      letterSpacing: '0.02em',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}>
+                      <Percent size={11} /> SAVE EXTRA 2.5%
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-dark-muted)', display: 'block', marginTop: '4px' }}>
+                    Pay now and get 2.5% extra discount. Supports UPI, Cards, Net Banking, and Wallets.
+                  </span>
+                </div>
+              </label>
+
+              {/* Cash on Delivery Option */}
+              <label
+                className={'form-control ' + (paymentMethod === 'COD' ? 'active' : '')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '15px',
+                  cursor: 'pointer',
+                  padding: '16px',
+                  border: paymentMethod === 'COD' ? '2px solid var(--primary, #0f172a)' : '1px solid var(--bg-light-border)',
+                  borderRadius: 'var(--border-radius-md)',
+                  backgroundColor: paymentMethod === 'COD' ? 'rgba(245, 158, 11, 0.04)' : 'transparent',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="COD"
+                  checked={paymentMethod === 'COD'}
+                  onChange={() => setPaymentMethod('COD')}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary, #0f172a)', marginTop: '3px' }}
+                />
+                <Banknote size={22} style={{ color: 'var(--primary, #0f172a)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ flexGrow: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Cash on Delivery</span>
+                    <span style={{
+                      backgroundColor: '#fef3c7',
+                      color: '#b45309',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      letterSpacing: '0.02em'
+                    }}>
+                      10% ADVANCE REQUIRED
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-dark-muted)', display: 'block', marginTop: '4px' }}>
+                    Pay 10% advance now and the remaining amount on delivery.
+                  </span>
                 </div>
               </label>
             </div>
@@ -438,7 +498,9 @@ const CheckoutContent = () => {
 
           {appliedCoupon && (
             <div className="summary-row" style={{ color: 'var(--success)' }}>
-              <span>Discount ({appliedCoupon.code})</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Tag size={13} /> Coupon ({appliedCoupon.code})
+              </span>
               <span>-{formatINR(discountAmount)}</span>
             </div>
           )}
@@ -452,23 +514,95 @@ const CheckoutContent = () => {
             )}
           </div>
 
-          <div className="summary-row total">
-            <span>Total</span>
-            <span>{formatINR(totalAmount)}</span>
-          </div>
+          {/* Conditional Payment Rule Breakdown */}
+          {paymentMethod === 'Online' ? (
+            <>
+              {breakdown.prepaidDiscountAmount > 0 && (
+                <div className="summary-row" style={{ color: '#15803d', fontWeight: 600 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Percent size={13} /> Prepaid Discount (2.5%)
+                  </span>
+                  <span>-{formatINR(breakdown.prepaidDiscountAmount)}</span>
+                </div>
+              )}
+
+              <div
+                style={{
+                  backgroundColor: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  color: '#065f46',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--border-radius-sm)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  margin: '12px 0 6px'
+                }}
+              >
+                🎉 Save extra 2.5% with prepaid online payment
+              </div>
+
+              <div className="summary-row total" style={{ marginTop: '10px' }}>
+                <span>Pay Now</span>
+                <span style={{ color: 'var(--primary, #0f172a)' }}>{formatINR(breakdown.payNowAmount)}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="summary-row" style={{ fontWeight: 600 }}>
+                <span>Order Total</span>
+                <span>{formatINR(breakdown.totalAmount)}</span>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  color: '#92400e',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--border-radius-sm)',
+                  fontSize: '0.78rem',
+                  lineHeight: '1.4',
+                  fontWeight: 600,
+                  margin: '12px 0 6px'
+                }}
+              >
+                10% advance required to confirm your COD order.
+              </div>
+
+              <div className="summary-row" style={{ color: '#b45309', fontWeight: 700 }}>
+                <span>Pay Now (10% Advance)</span>
+                <span>{formatINR(breakdown.payNowAmount)}</span>
+              </div>
+
+              <div className="summary-row" style={{ color: 'var(--text-dark-muted)', fontSize: '0.85rem' }}>
+                <span>Pay on Delivery</span>
+                <span>{formatINR(breakdown.payOnDeliveryAmount)}</span>
+              </div>
+
+              <div className="summary-row total" style={{ marginTop: '8px' }}>
+                <span>Pay Now</span>
+                <span style={{ color: 'var(--primary, #0f172a)' }}>{formatINR(breakdown.payNowAmount)}</span>
+              </div>
+            </>
+          )}
 
           <button
             type="submit"
             className="btn btn-accent btn-full"
             disabled={placingOrder || isProcessingPayment}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '16px' }}
           >
-            {placingOrder || isProcessingPayment ? 'Processing...' : 'Place Secure Order'} <ArrowRight size={16} />
+            {placingOrder || isProcessingPayment
+              ? 'Opening Payment Gateway...'
+              : paymentMethod === 'Online'
+                ? `Pay Now ${formatINR(breakdown.payNowAmount)}`
+                : `Pay 10% Advance (${formatINR(breakdown.payNowAmount)})`}
+            <ArrowRight size={16} />
           </button>
 
           <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dark-muted)', fontSize: '0.75rem' }}>
             <ShieldCheck size={18} className="text-success" style={{ flexShrink: 0 }} />
-            <span>Secured checkouts. Stock holds only after invoice confirmation.</span>
+            <span>Secured checkouts via Razorpay. Stock holds only after payment verification.</span>
           </div>
         </aside>
       </form>

@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
-import { prisma } from 'src/lib/prisma';
 import crypto from 'crypto';
+import { prisma } from 'src/lib/prisma';
+import { getAuthUser } from 'src/lib/auth';
 import { resolveAuthoritativeItemPricing } from 'src/lib/productPricing';
+import { calculatePaymentBreakdown } from 'src/lib/paymentCalculations';
 
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 export async function POST(request) {
   try {
-    if (!RAZORPAY_KEY_SECRET) {
+    if (!RAZORPAY_KEY_SECRET || !RAZORPAY_KEY_ID) {
       return NextResponse.json(
         { success: false, error: 'Payment gateway is not configured. Please contact support.' },
         { status: 500 }
@@ -21,7 +24,7 @@ export async function POST(request) {
       razorpay_signature,
       orderItems = [],
       shippingAddress,
-      paymentMethod,
+      paymentMethod = 'Online',
       couponCode = '',
       guestDetails
     } = body;
@@ -32,6 +35,16 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    if (!orderItems || orderItems.length === 0) {
+      return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
+    }
+
+    if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.addressLine || !shippingAddress.city || !shippingAddress.state || !shippingAddress.pincode || !shippingAddress.phone) {
+      return NextResponse.json({ success: false, error: 'Complete shipping address is required' }, { status: 400 });
+    }
+
+    const normalizedPaymentMethod = paymentMethod === 'COD' ? 'COD' : 'Online';
 
     // Step 1: Verify Razorpay signature
     // Signature = HMAC-SHA256(order_id + "|" + payment_id, key_secret)
@@ -48,10 +61,8 @@ export async function POST(request) {
       );
     }
 
-    // Step 2: Verify the Razorpay order exists and is paid
-    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+    // Step 2: Fetch and verify payment from Razorpay API
     const authHeader = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
-
     let paymentDetails;
     try {
       const paymentRes = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
@@ -71,13 +82,29 @@ export async function POST(request) {
       );
     }
 
+    if (paymentDetails.order_id !== razorpay_order_id) {
+      console.error(`Razorpay order_id mismatch: payment has ${paymentDetails.order_id}, request has ${razorpay_order_id}`);
+      return NextResponse.json(
+        { success: false, error: 'Payment order ID mismatch. Please contact support.' },
+        { status: 400 }
+      );
+    }
+
+    if (paymentDetails.currency !== 'INR') {
+      console.error(`Razorpay currency mismatch: expected INR, received ${paymentDetails.currency}`);
+      return NextResponse.json(
+        { success: false, error: 'Invalid payment currency. Please contact support.' },
+        { status: 400 }
+      );
+    }
+
     // Step 3: Idempotency check - prevent duplicate order creation
-    // Razorpay payment_id is unique and idempotent
     const existingOrder = await prisma.order.findFirst({
       where: {
         OR: [
-          { orderId: razorpay_order_id },
-          // We can store razorpay_payment_id in notes or check by orderId pattern
+          { razorpayPaymentId: razorpay_payment_id },
+          { razorpayOrderId: razorpay_order_id },
+          { orderId: razorpay_order_id }
         ]
       },
       include: { orderItems: true }
@@ -87,18 +114,21 @@ export async function POST(request) {
       return NextResponse.json({
         success: true,
         orderId: existingOrder.orderId,
-        message: 'Order already confirmed'
+        message: 'Order already confirmed',
+        isDuplicate: true
       });
     }
 
-    // Step 4: Fetch settings
+    // Step 4: Resolve logged-in user association
+    const authUser = getAuthUser(request);
+
+    // Step 5: Fetch settings
     const settings = await prisma.setting.findFirst() || {
       shippingCharges: 10,
       freeShippingMinAmount: 100
     };
 
-    // Step 5: Re-validate products and compute totals server-side
-    // NEVER trust frontend totals
+    // Step 6: Authoritatively re-validate products and compute totals server-side
     let subtotal = 0;
     const validatedItems = [];
 
@@ -156,7 +186,7 @@ export async function POST(request) {
       });
     }
 
-    // Step 6: Validate and apply coupon server-side
+    // Step 7: Authoritatively validate and apply coupon server-side
     let discountAmount = 0;
     let validCoupon = null;
 
@@ -179,12 +209,19 @@ export async function POST(request) {
       }
     }
 
-    // Step 7: Compute shipping server-side
+    // Step 8: Compute shipping server-side
     const shippingPrice = subtotal >= settings.freeShippingMinAmount ? 0 : settings.shippingCharges;
-    const totalAmount = subtotal - discountAmount + shippingPrice;
 
-    // Verify payment amount matches authoritative calculated amount
-    const expectedAmountInPaise = Math.round(totalAmount * 100);
+    // Step 9: Compute payment breakdown
+    const breakdown = calculatePaymentBreakdown({
+      subtotal,
+      couponDiscount: discountAmount,
+      shipping: shippingPrice,
+      paymentMethod: normalizedPaymentMethod
+    });
+
+    // Step 10: Verify Razorpay payment amount matches authoritative expected paid amount
+    const expectedAmountInPaise = breakdown.razorpayAmountInPaise;
     if (paymentDetails && paymentDetails.amount !== expectedAmountInPaise) {
       console.error(`Razorpay payment amount mismatch: expected ${expectedAmountInPaise} paise, but received ${paymentDetails.amount} paise`);
       return NextResponse.json(
@@ -193,28 +230,46 @@ export async function POST(request) {
       );
     }
 
-    // Step 8: Generate order ID
-    const cryptoLib = require('crypto');
-    const randomHex = cryptoLib.randomBytes(4).toString('hex').toUpperCase();
+    // Step 11: Generate human-readable order ID
+    const randomHex = crypto.randomBytes(4).toString('hex').toUpperCase();
     const orderId = `ZAS-${randomHex}-IND`;
 
-    // Step 9: Create order in database with transaction
-    // Stock decrement, coupon increment, and order creation are atomic
+    // Step 12: Create order in database with transaction (atomic stock decrement & coupon usage)
     const newOrder = await prisma.$transaction(async (tx) => {
+      // Re-check idempotency inside transaction to prevent race conditions
+      const raceCheck = await tx.order.findFirst({
+        where: {
+          OR: [
+            { razorpayPaymentId: razorpay_payment_id },
+            { razorpayOrderId: razorpay_order_id }
+          ]
+        },
+        include: { orderItems: true }
+      });
+
+      if (raceCheck) {
+        return raceCheck;
+      }
+
       const order = await tx.order.create({
         data: {
           orderId,
-          // No userId or guestDetails since this was an online payment
-          // The frontend should handle user/guest info separately
-          guestDetails: guestDetails || null,
+          userId: authUser ? authUser.id : null,
+          guestDetails: authUser ? null : (guestDetails || null),
           shippingAddress,
-          paymentMethod: 'Online',
-          paymentStatus: 'Paid',
+          paymentMethod: normalizedPaymentMethod,
+          paymentStatus: normalizedPaymentMethod === 'COD' ? 'Partially Paid' : 'Paid',
           orderStatus: 'Pending',
           shippingPrice,
           discountAmount,
+          prepaidDiscountAmount: breakdown.prepaidDiscountAmount,
+          codAdvanceAmount: breakdown.codAdvanceAmount,
           subtotal,
-          totalAmount,
+          totalAmount: breakdown.totalAmount, // Preserves FULL order value for COD
+          amountPaid: breakdown.amountPaid,   // 10% advance for COD, 100% for Online
+          amountDue: breakdown.amountDue,     // 90% for COD, 0 for Online
+          razorpayOrderId: razorpay_order_id,
+          razorpayPaymentId: razorpay_payment_id,
           couponCode: validCoupon ? validCoupon.code : '',
           orderItems: {
             create: validatedItems.map(item => ({
@@ -253,7 +308,12 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: 'Payment verified and order placed successfully',
-      orderId: newOrder.orderId
+      orderId: newOrder.orderId,
+      paymentMethod: newOrder.paymentMethod,
+      paymentStatus: newOrder.paymentStatus,
+      amountPaid: newOrder.amountPaid,
+      amountDue: newOrder.amountDue,
+      totalAmount: newOrder.totalAmount
     });
 
   } catch (error) {

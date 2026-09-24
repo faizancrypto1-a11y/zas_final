@@ -594,3 +594,6 @@ export function getCartItemKey(productId, selectedVariant) {
   const attrStr = keys.map(k => `${slugify(k)}=${slugify(clean[k])}`).join('&');
   return `${pId}::${attrStr}`;
 }
+
+export { calculatePaymentBreakdown } from './paymentCalculations.js';
+

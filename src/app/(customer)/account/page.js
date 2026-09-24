@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -17,6 +17,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useStore } from 'src/context/StoreContext';
+import { formatINR } from 'src/lib/currency';
 
 const CustomerAccountPage = () => {
   const router = useRouter();
@@ -35,23 +36,7 @@ const CustomerAccountPage = () => {
   const [pincode, setPincode] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
 
-  // 1. Initial access authentication check
-  useEffect(() => {
-    // Wait, let's fetch user's orders
-    if (user) {
-      fetchUserOrders();
-    } else {
-      // Give store context some time to load user session, else redirect
-      const checkTimer = setTimeout(() => {
-        if (!user) {
-          router.push('/login');
-        }
-      }, 1500);
-      return () => clearTimeout(checkTimer);
-    }
-  }, [user]);
-
-  const fetchUserOrders = async () => {
+  const fetchUserOrders = useCallback(async () => {
     try {
       setLoadingOrders(true);
       const res = await fetch('/api/orders');
@@ -64,7 +49,25 @@ const CustomerAccountPage = () => {
       console.log('Error loading customer orders:', err);
       setLoadingOrders(false);
     }
-  };
+  }, []);
+
+  // 1. Initial access authentication check
+  useEffect(() => {
+    if (user) {
+      const timer = setTimeout(() => {
+        fetchUserOrders();
+      }, 0);
+      return () => clearTimeout(timer);
+    } else {
+      // Give store context some time to load user session, else redirect
+      const checkTimer = setTimeout(() => {
+        if (!user) {
+          router.push('/login');
+        }
+      }, 1500);
+      return () => clearTimeout(checkTimer);
+    }
+  }, [user, fetchUserOrders, router]);
 
   // 2. Address CRUD handlers
   const handleAddAddress = async (e) => {
@@ -256,7 +259,7 @@ const CustomerAccountPage = () => {
               ) : orders.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0' }}>
                   <ShoppingBag size={40} style={{ color: 'var(--text-dark-muted)', marginBottom: '10px' }} />
-                  <p style={{ color: 'var(--text-dark-muted)' }}>You haven't placed any orders yet.</p>
+                  <p style={{ color: 'var(--text-dark-muted)' }}>You haven&apos;t placed any orders yet.</p>
                   <Link href="/shop" className="btn btn-primary btn-sm" style={{ marginTop: '15px' }}>Shop Gear</Link>
                 </div>
               ) : (
@@ -274,7 +277,12 @@ const CustomerAccountPage = () => {
                         </div>
                         <div>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-dark-muted)', fontWeight: 700 }}>TOTAL AMOUNT</span>
-                          <p style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-dark)' }}>${order.totalAmount}</p>
+                          <p style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-dark)' }}>{formatINR(order.totalAmount)}</p>
+                          {order.paymentMethod === 'COD' && order.amountDue > 0 && (
+                            <span style={{ fontSize: '0.7rem', color: '#b45309', display: 'block' }}>
+                              Adv: {formatINR(order.amountPaid || order.codAdvanceAmount)} | Due: {formatINR(order.amountDue)}
+                            </span>
+                          )}
                         </div>
                         <div>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-dark-muted)', fontWeight: 700, display: 'block', textAlign: 'right' }}>STATUS</span>
@@ -292,7 +300,7 @@ const CustomerAccountPage = () => {
                               <span style={{ color: 'var(--text-dark-muted)' }}>
                                 {item.name} <strong>x{item.quantity}</strong>
                               </span>
-                              <span style={{ fontWeight: 600 }}>${item.price * item.quantity}</span>
+                              <span style={{ fontWeight: 600 }}>{formatINR(item.price * item.quantity)}</span>
                             </div>
                           ))}
                         </div>

@@ -5,11 +5,6 @@ import {
   Search, 
   X, 
   Printer, 
-  Truck, 
-  DollarSign, 
-  User, 
-  MapPin, 
-  Clock, 
   SlidersHorizontal 
 } from 'lucide-react';
 import { formatINR } from 'src/lib/currency';
@@ -33,8 +28,7 @@ const OrdersManagement = () => {
   const fetchAdminOrders = useCallback(async () => {
     try {
       setLoading(true);
-      let url = '/api/orders';
-      // To bypass search limitations, we can search by orderId or fetch all and filter locally
+      const url = '/api/orders';
       const res = await fetch(url);
       const data = await res.json();
 
@@ -64,8 +58,14 @@ const OrdersManagement = () => {
   }, [search, statusFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchAdminOrders();
+    let isMounted = true;
+    const timer = setTimeout(() => {
+      if (isMounted) fetchAdminOrders();
+    }, 0);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [fetchAdminOrders]);
 
   const handleOpenDetailsModal = (order) => {
@@ -107,14 +107,28 @@ const OrdersManagement = () => {
 
   const handlePrint = (order) => {
     setSelectedPrintOrder(order);
-    // Give state some ticks to hydrarate printer-only DOM overlay
     setTimeout(() => {
       window.print();
     }, 250);
   };
 
   const orderStatuses = ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled', 'Returned'];
-  const paymentStatuses = ['Pending', 'Paid', 'Failed', 'Refunded'];
+  const paymentStatuses = ['Pending', 'Partially Paid', 'Paid', 'Failed', 'Refunded'];
+
+  const getPaymentBadgeClass = (status) => {
+    switch (status) {
+      case 'Paid':
+        return 'success';
+      case 'Partially Paid':
+        return 'info';
+      case 'Failed':
+        return 'failed';
+      case 'Refunded':
+        return 'muted';
+      default:
+        return 'pending';
+    }
+  };
 
   return (
     <div className="animate-fade">
@@ -175,10 +189,10 @@ const OrdersManagement = () => {
               {orders.map(order => (
                 <tr key={order.id || order._id}>
                   <td style={{ fontWeight: 700, color: 'white' }}>{order.orderId}</td>
-                  <td>{order.shippingAddress.fullName}</td>
+                  <td>{order.shippingAddress?.fullName}</td>
                   <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                   <td>
-                    <span className={`status-badge ${order.paymentStatus === 'Paid' ? 'success' : order.paymentStatus === 'Failed' ? 'failed' : 'pending'}`}>
+                    <span className={`status-badge ${getPaymentBadgeClass(order.paymentStatus)}`}>
                       {order.paymentStatus}
                     </span>
                   </td>
@@ -225,7 +239,7 @@ const OrdersManagement = () => {
       {/* UPDATE STATUS & DETAILS MODAL */}
       {selectedOrder && (
         <div className="admin-modal-overlay">
-          <div className="admin-modal animate-slide-up" style={{ maxWidth: '680px' }}>
+          <div className="admin-modal animate-slide-up" style={{ maxWidth: '720px' }}>
             <div className="admin-modal-header">
               <h3>Order details: {selectedOrder.orderId}</h3>
               <button type="button" onClick={() => setSelectedOrder(null)} style={{ color: 'white' }}>
@@ -235,18 +249,75 @@ const OrdersManagement = () => {
             
             <form onSubmit={handleUpdateOrder}>
               <div className="admin-modal-body">
+                {/* Payment Overview Card */}
+                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', padding: '16px', marginBottom: '20px', border: '1px solid var(--bg-dark-border)' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-light-muted)', display: 'block', marginBottom: '12px' }}>
+                    Payment Summary
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px', fontSize: '0.85rem' }}>
+                    <div>
+                      <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Payment Method</span>
+                      <strong style={{ color: 'white' }}>{selectedOrder.paymentMethod === 'Online' ? 'Online / Prepaid' : 'COD'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Payment Status</span>
+                      <span className={`status-badge ${getPaymentBadgeClass(selectedOrder.paymentStatus)}`} style={{ display: 'inline-block', marginTop: '2px' }}>
+                        {selectedOrder.paymentStatus}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Order Total</span>
+                      <strong style={{ color: 'white' }}>{formatINR(selectedOrder.totalAmount)}</strong>
+                    </div>
+
+                    {selectedOrder.paymentMethod === 'Online' ? (
+                      <>
+                        <div>
+                          <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Amount Paid</span>
+                          <strong style={{ color: '#10b981' }}>{formatINR(selectedOrder.amountPaid || selectedOrder.totalAmount)}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Amount Due</span>
+                          <strong style={{ color: 'white' }}>{formatINR(selectedOrder.amountDue || 0)}</strong>
+                        </div>
+                        {selectedOrder.prepaidDiscountAmount > 0 && (
+                          <div>
+                            <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Prepaid Discount</span>
+                            <strong style={{ color: '#10b981' }}>{formatINR(selectedOrder.prepaidDiscountAmount)}</strong>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Advance Paid</span>
+                          <strong style={{ color: '#38bdf8' }}>
+                            {formatINR(selectedOrder.amountPaid || selectedOrder.codAdvanceAmount || (selectedOrder.totalAmount * 0.10))}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--text-light-muted)', fontSize: '0.75rem', display: 'block' }}>Due on Delivery</span>
+                          <strong style={{ color: '#fbbf24' }}>
+                            {formatINR(selectedOrder.amountDue || (selectedOrder.totalAmount - (selectedOrder.amountPaid || selectedOrder.codAdvanceAmount || (selectedOrder.totalAmount * 0.10))))}
+                          </strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', marginBottom: '24px' }}>
                   
                   {/* Address and Contact details */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div>
                       <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-light-muted)' }}>Shipping Destination</span>
-                      <p style={{ fontWeight: 600, color: 'white', marginTop: '4px' }}>{selectedOrder.shippingAddress.fullName}</p>
+                      <p style={{ fontWeight: 600, color: 'white', marginTop: '4px' }}>{selectedOrder.shippingAddress?.fullName}</p>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-light-muted)', marginTop: '2px', lineHeight: '1.4' }}>
-                        {selectedOrder.shippingAddress.addressLine}, <br />
-                        {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} - {selectedOrder.shippingAddress.pincode}
+                        {selectedOrder.shippingAddress?.addressLine}, <br />
+                        {selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.state} - {selectedOrder.shippingAddress?.pincode}
                       </p>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-light-muted)', marginTop: '4px' }}>Phone: {selectedOrder.shippingAddress.phone}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-light-muted)', marginTop: '4px' }}>Phone: {selectedOrder.shippingAddress?.phone}</p>
                     </div>
                     
                     {selectedOrder.guestDetails && (
@@ -367,17 +438,17 @@ const OrdersManagement = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '40px', fontSize: '13px' }}>
             <div>
               <h4 style={{ margin: '0 0 8px', fontWeight: 700, textTransform: 'uppercase' }}>BILL TO / SHIP TO:</h4>
-              <strong>{selectedPrintOrder.shippingAddress.fullName}</strong>
+              <strong>{selectedPrintOrder.shippingAddress?.fullName}</strong>
               <p style={{ margin: '4px 0', lineHeight: '1.4' }}>
-                {selectedPrintOrder.shippingAddress.addressLine}, <br />
-                {selectedPrintOrder.shippingAddress.city}, {selectedPrintOrder.shippingAddress.state} - {selectedPrintOrder.shippingAddress.pincode}
+                {selectedPrintOrder.shippingAddress?.addressLine}, <br />
+                {selectedPrintOrder.shippingAddress?.city}, {selectedPrintOrder.shippingAddress?.state} - {selectedPrintOrder.shippingAddress?.pincode}
               </p>
-              <p style={{ margin: '6px 0 0' }}>Phone: {selectedPrintOrder.shippingAddress.phone}</p>
+              <p style={{ margin: '6px 0 0' }}>Phone: {selectedPrintOrder.shippingAddress?.phone}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
               <h4 style={{ margin: '0 0 8px', fontWeight: 700, textTransform: 'uppercase' }}>ORDER DETAILS:</h4>
               <p style={{ margin: '4px 0' }}><strong>Date:</strong> {new Date(selectedPrintOrder.createdAt).toLocaleDateString()}</p>
-              <p style={{ margin: '4px 0' }}><strong>Payment Method:</strong> {selectedPrintOrder.paymentMethod}</p>
+              <p style={{ margin: '4px 0' }}><strong>Payment Method:</strong> {selectedPrintOrder.paymentMethod === 'Online' ? 'Online / Prepaid' : 'COD'}</p>
               <p style={{ margin: '4px 0' }}><strong>Payment Status:</strong> {selectedPrintOrder.paymentStatus}</p>
               {selectedPrintOrder.trackingId && (
                 <p style={{ margin: '4px 0' }}><strong>Shipping Tracking:</strong> {selectedPrintOrder.courierName} ({selectedPrintOrder.trackingId})</p>
@@ -418,25 +489,72 @@ const OrdersManagement = () => {
 
           {/* Calculations right */}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ width: '250px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Subtotal:</span>
-                <span>{formatINR(selectedPrintOrder.subtotal)}</span>
-              </div>
-              {selectedPrintOrder.discountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Discount:</span>
-                  <span>-{formatINR(selectedPrintOrder.discountAmount)}</span>
-                </div>
+            <div style={{ width: '280px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {selectedPrintOrder.paymentMethod === 'Online' ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Subtotal:</span>
+                    <span>{formatINR(selectedPrintOrder.subtotal)}</span>
+                  </div>
+                  {selectedPrintOrder.discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Coupon Discount:</span>
+                      <span>-{formatINR(selectedPrintOrder.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Shipping:</span>
+                    <span>{selectedPrintOrder.shippingPrice === 0 ? 'FREE' : formatINR(selectedPrintOrder.shippingPrice)}</span>
+                  </div>
+                  {selectedPrintOrder.prepaidDiscountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d' }}>
+                      <span>Prepaid Discount (2.5%):</span>
+                      <span>-{formatINR(selectedPrintOrder.prepaidDiscountAmount)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #ddd', paddingTop: '6px' }}>
+                    <span>Total:</span>
+                    <span>{formatINR(selectedPrintOrder.totalAmount)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d' }}>
+                    <span>Paid:</span>
+                    <span>{formatINR(selectedPrintOrder.amountPaid || selectedPrintOrder.totalAmount)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '15px', borderTop: '2px solid black', paddingTop: '8px', marginTop: '4px' }}>
+                    <span>Balance Due:</span>
+                    <span>{formatINR(selectedPrintOrder.amountDue || 0)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Subtotal:</span>
+                    <span>{formatINR(selectedPrintOrder.subtotal)}</span>
+                  </div>
+                  {selectedPrintOrder.discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Coupon Discount:</span>
+                      <span>-{formatINR(selectedPrintOrder.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Shipping:</span>
+                    <span>{selectedPrintOrder.shippingPrice === 0 ? 'FREE' : formatINR(selectedPrintOrder.shippingPrice)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px solid #ddd', paddingTop: '6px' }}>
+                    <span>Order Total:</span>
+                    <span>{formatINR(selectedPrintOrder.totalAmount)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d' }}>
+                    <span>COD Advance Paid:</span>
+                    <span>{formatINR(selectedPrintOrder.amountPaid || selectedPrintOrder.codAdvanceAmount || (selectedPrintOrder.totalAmount * 0.10))}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '15px', borderTop: '2px solid black', paddingTop: '8px', marginTop: '4px' }}>
+                    <span>Balance Due on Delivery:</span>
+                    <span>{formatINR(selectedPrintOrder.amountDue || (selectedPrintOrder.totalAmount - (selectedPrintOrder.amountPaid || selectedPrintOrder.codAdvanceAmount || (selectedPrintOrder.totalAmount * 0.10))))}</span>
+                  </div>
+                </>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Shipping:</span>
-                <span>{selectedPrintOrder.shippingPrice === 0 ? 'FREE' : formatINR(selectedPrintOrder.shippingPrice)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '16px', borderTop: '2px solid black', paddingTop: '10px', marginTop: '5px' }}>
-                <span>Total Due:</span>
-                <span>{formatINR(selectedPrintOrder.totalAmount)}</span>
-              </div>
             </div>
           </div>
 

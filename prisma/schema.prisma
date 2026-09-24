@@ -58,12 +58,18 @@ model Order {
   orderStatus      String   @default("Pending") // 'Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled', 'Returned'
   trackingId       String?
   courierName      String?
-  shippingPrice    Float    @default(0)
-  discountAmount   Float    @default(0)
-  subtotal         Float
-  totalAmount      Float
-  couponCode       String?
-  createdAt        DateTime @default(now())
+  shippingPrice         Float    @default(0)
+  discountAmount        Float    @default(0)
+  prepaidDiscountAmount Float    @default(0)
+  subtotal              Float
+  totalAmount           Float
+  amountPaid            Float    @default(0)
+  amountDue             Float    @default(0)
+  codAdvanceAmount      Float    @default(0)
+  razorpayOrderId       String?  @unique
+  razorpayPaymentId     String?  @unique
+  couponCode            String?
+  createdAt             DateTime @default(now())
 }
 
 model OrderItem {

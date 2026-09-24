@@ -13,7 +13,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 15px 0;
+  padding: 12px 0;
   gap: 20px;
 }
 
@@ -24,9 +24,10 @@
   flex-shrink: 0;
 }
 .logo-img {
-  height: 64px;
+  height: 88px;
   width: auto;
   object-fit: contain;
+  transition: height var(--transition);
 }
 
 .search-bar-container {
@@ -651,9 +652,21 @@
   .mobile-only-flex {
     display: flex !important;
   }
+  .header-top {
+    padding: 10px 0;
+  }
+  .logo-img {
+    height: 72px;
+  }
   .search-bar-container {
     max-width: 100%;
     margin: 5px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-img {
+    height: 68px;
   }
 }
 

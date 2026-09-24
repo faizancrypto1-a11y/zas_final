@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from 'src/lib/prisma';
 import { resolveAuthoritativeItemPricing } from 'src/lib/productPricing';
+import { calculatePaymentBreakdown } from 'src/lib/paymentCalculations';
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -18,7 +19,7 @@ export async function POST(request) {
     const {
       orderItems = [],
       shippingAddress,
-      paymentMethod,
+      paymentMethod = 'Online',
       couponCode = '',
       guestDetails
     } = body;
@@ -29,8 +30,10 @@ export async function POST(request) {
     if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.addressLine || !shippingAddress.city || !shippingAddress.state || !shippingAddress.pincode || !shippingAddress.phone) {
       return NextResponse.json({ success: false, error: 'Complete shipping address is required' }, { status: 400 });
     }
-    if (paymentMethod !== 'Online') {
-      return NextResponse.json({ success: false, error: 'Invalid payment method' }, { status: 400 });
+
+    const normalizedPaymentMethod = paymentMethod === 'COD' ? 'COD' : (paymentMethod === 'Online' ? 'Online' : null);
+    if (!normalizedPaymentMethod) {
+      return NextResponse.json({ success: false, error: 'Invalid payment method. Choose Online or COD.' }, { status: 400 });
     }
 
     // Fetch settings
@@ -123,10 +126,16 @@ export async function POST(request) {
 
     // Calculate shipping server-side
     const shippingPrice = subtotal >= settings.freeShippingMinAmount ? 0 : settings.shippingCharges;
-    const totalAmount = subtotal - discountAmount + shippingPrice;
 
-    // Convert rupees to paise (Razorpay uses paise)
-    const amountInPaise = Math.round(totalAmount * 100);
+    // Calculate authoritative payment breakdown
+    const breakdown = calculatePaymentBreakdown({
+      subtotal,
+      couponDiscount: discountAmount,
+      shipping: shippingPrice,
+      paymentMethod: normalizedPaymentMethod
+    });
+
+    const amountInPaise = breakdown.razorpayAmountInPaise;
 
     if (amountInPaise < 1) {
       return NextResponse.json(
@@ -137,6 +146,7 @@ export async function POST(request) {
 
     // Create Razorpay order via Orders API
     const authHeader = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
+    const receipt = `${normalizedPaymentMethod.toLowerCase()}_${Date.now()}`;
 
     const razorpayRes = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
@@ -147,8 +157,12 @@ export async function POST(request) {
       body: JSON.stringify({
         amount: amountInPaise,
         currency: 'INR',
-        receipt: `order_${Date.now()}`,
-        payment_capture: 1
+        receipt,
+        payment_capture: 1,
+        notes: {
+          paymentMethod: normalizedPaymentMethod,
+          isAdvancePayment: normalizedPaymentMethod === 'COD' ? 'true' : 'false'
+        }
       })
     });
 
@@ -162,29 +176,35 @@ export async function POST(request) {
       );
     }
 
-    // Store validated items and totals in response for verification step
+    // Return Razorpay order details and authoritative metadata for frontend display
     return NextResponse.json({
       success: true,
       razorpayOrderId: razorpayOrder.id,
       amount: amountInPaise,
       currency: 'INR',
       keyId: RAZORPAY_KEY_ID,
+      paymentMethod: normalizedPaymentMethod,
       prefill: {
         name: shippingAddress.fullName,
         email: guestDetails?.email || '',
         contact: shippingAddress.phone
       },
-      // Include validated order data so the verify endpoint can use it
+      breakdown,
+      // Metadata for verification step (server recalculates everything authoritatively during verify)
       _orderData: {
         orderItems: validatedItems,
         shippingAddress,
-        paymentMethod: 'Online',
-        paymentStatus: 'Paid',
+        paymentMethod: normalizedPaymentMethod,
+        paymentStatus: normalizedPaymentMethod === 'COD' ? 'Partially Paid' : 'Paid',
         orderStatus: 'Pending',
         shippingPrice,
         discountAmount,
+        prepaidDiscountAmount: breakdown.prepaidDiscountAmount,
+        codAdvanceAmount: breakdown.codAdvanceAmount,
         subtotal,
-        totalAmount,
+        totalAmount: breakdown.totalAmount,
+        amountPaid: breakdown.amountPaid,
+        amountDue: breakdown.amountDue,
         couponCode: validCoupon ? validCoupon.code : '',
         couponId: validCoupon ? validCoupon.id : null,
         guestDetails
