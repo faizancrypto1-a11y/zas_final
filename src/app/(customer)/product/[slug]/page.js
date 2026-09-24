@@ -53,80 +53,147 @@ const ProductDetailPage = () => {
   const [reviewSubmitMessage, setReviewSubmitMessage] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
-  // 1. Fetch product & related items by slug
-  useEffect(() => {
-    const fetchProductDetails = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const res = await fetch(`/api/products/${slug}`);
-        const data = await res.json();
-        
-        if (data.success && data.product) {
-          const currentProd = data.product;
-          setProduct(currentProd);
-          
-          // Pre-select first variant options if available
-          const options = getProductOptions(currentProd);
-          const initial = {};
-          if (currentProd.variants?.combinations?.length > 0) {
-            const firstComb = currentProd.variants.combinations.find(c => c && c.mrp > 0) || currentProd.variants.combinations[0];
-            if (firstComb && firstComb.attributes) {
-              Object.assign(initial, firstComb.attributes);
-            }
-          }
-          options.forEach(opt => {
-            if (!initial[opt.key] && opt.values?.length > 0) {
-              initial[opt.key] = opt.values[0];
-            }
-          });
-          setSelectedOptions(initial);
-          
-          // Fetch reviews
-          fetchProductReviews(currentProd.id || currentProd._id);
-
-          // Fetch related items in same category
-          const relatedRes = await fetch(`/api/products?category=${currentProd.category}`);
-          const relatedData = await relatedRes.json();
-          if (relatedData.success) {
-            setRelatedProducts(relatedData.products.filter(p => String(p.id || p._id) !== String(currentProd.id || currentProd._id)).slice(0, 4));
-          }
-        } else {
-          setError(data.error || 'Product not found');
-        }
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching details:', err);
-        setError('Error loading page details');
-        setLoading(false);
-      }
-    };
-
-    if (slug) {
-      fetchProductDetails();
-    }
-  }, [slug]);
-
-  // Sync general pincode from context
-  useEffect(() => {
-    if (pincode) {
-      setPinInput(pincode);
-      setPinCheckStatus(pincodeStatus === 'deliverable' ? 'valid' : 'invalid');
-    }
-  }, [pincode, pincodeStatus]);
-
   const fetchProductReviews = async (pId) => {
     try {
-      const res = await fetch(`/api/reviews?productId=${pId}`);
+      if (!pId) return;
+      const res = await fetch(`/api/reviews?productId=${encodeURIComponent(pId)}`, {
+        priority: 'low'
+      });
+      if (!res.ok) return;
       const data = await res.json();
-      if (data.success) {
+      if (data?.success && Array.isArray(data.reviews)) {
         setReviews(data.reviews);
       }
     } catch (err) {
       console.log('Error loading reviews:', err);
     }
   };
+
+  const fetchRelatedProducts = async (currentProd) => {
+    try {
+      if (!currentProd?.category) {
+        setRelatedProducts([]);
+        return;
+      }
+      const categoryParam = encodeURIComponent(currentProd.category);
+      const relatedRes = await fetch(
+        `/api/products?category=${categoryParam}&limit=5`,
+        { priority: 'low' }
+      );
+
+      if (!relatedRes.ok) {
+        setRelatedProducts([]);
+        return;
+      }
+
+      const relatedData = await relatedRes.json();
+      if (relatedData?.success && Array.isArray(relatedData.products)) {
+        const currentId = String(currentProd.id || currentProd._id || '');
+        const filtered = relatedData.products
+          .filter(p => p && String(p.id || p._id) !== currentId)
+          .slice(0, 4);
+        setRelatedProducts(filtered);
+      } else {
+        setRelatedProducts([]);
+      }
+    } catch (err) {
+      console.error('Related products loading failed:', err);
+      setRelatedProducts([]);
+    }
+  };
+
+  // 1. Fetch product & related items by slug
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 12000); // 12-second timeout protection for main product
+
+    const fetchProductDetails = async () => {
+      let currentProd = null;
+      try {
+        setLoading(true);
+        setError(null);
+        setRelatedProducts([]);
+        setReviews([]);
+        
+        const res = await fetch(`/api/products/${encodeURIComponent(slug)}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          throw new Error(`Failed to load product (status ${res.status})`);
+        }
+        
+        const data = await res.json();
+        
+        if (data && data.success && data.product) {
+          currentProd = data.product;
+          if (isMounted) {
+            setProduct(currentProd);
+            
+            // Pre-select first variant options if available
+            const options = getProductOptions(currentProd);
+            const initial = {};
+            if (currentProd.variants?.combinations?.length > 0) {
+              const firstComb = currentProd.variants.combinations.find(c => c && c.mrp > 0) || currentProd.variants.combinations[0];
+              if (firstComb && firstComb.attributes) {
+                Object.assign(initial, firstComb.attributes);
+              }
+            }
+            options.forEach(opt => {
+              if (!initial[opt.key] && opt.values?.length > 0) {
+                initial[opt.key] = opt.values[0];
+              }
+            });
+            setSelectedOptions(initial);
+          }
+        } else {
+          throw new Error(data?.error || 'Product not found');
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('Error fetching details:', err);
+        if (err.name === 'AbortError') {
+          setError('Unable to load this product right now. Please try again.');
+        } else {
+          setError(err.message || 'Error loading page details');
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+
+      // Secondary background loading: never blocks main product rendering
+      if (currentProd && isMounted) {
+        fetchProductReviews(currentProd.id || currentProd._id);
+        fetchRelatedProducts(currentProd);
+      }
+    };
+
+    if (slug) {
+      fetchProductDetails();
+    }
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [slug]);
+
+  // Sync general pincode from context
+  useEffect(() => {
+    if (pincode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPinInput(pincode);
+      setPinCheckStatus(pincodeStatus === 'deliverable' ? 'valid' : 'invalid');
+    }
+  }, [pincode, pincodeStatus]);
 
   const handlePincodeValidate = (e) => {
     e.preventDefault();
@@ -202,16 +269,16 @@ const ProductDetailPage = () => {
       
       if (data.success) {
         setReviewSubmitMessage('Thank you! Your review has been submitted for approval.');
-        setReviewComment('');
-        setReviewName('');
-        setReviewEmail('');
+        setReviewerComment('');
+        setReviewerName('');
+        setReviewerEmail('');
       } else {
         setReviewSubmitMessage(`Error: ${data.error}`);
       }
-      setReviewSubmitting(false);
     } catch (err) {
       console.log('Error submitting review:', err);
       setReviewSubmitMessage('Error submitting your review. Please try again.');
+    } finally {
       setReviewSubmitting(false);
     }
   };
@@ -249,8 +316,8 @@ const ProductDetailPage = () => {
         <span>/</span>
         <Link href="/shop">Shop</Link>
         <span>/</span>
-        <Link href={`/shop?category=${product.category}`}>
-          {product.category.replace('-', ' ')}
+        <Link href={`/shop?category=${encodeURIComponent(product.category || '')}`}>
+          {product.category ? product.category.replace(/-/g, ' ') : ''}
         </Link>
         <span>/</span>
         <span style={{ color: 'var(--text-dark)' }}>{product.name}</span>
@@ -298,14 +365,14 @@ const ProductDetailPage = () => {
                 <Star 
                   key={i} 
                   size={16} 
-                  fill={i < Math.round(product.ratings?.average || 0) ? '#F59E0B' : 'transparent'} 
+                  fill={i < Math.round(Number(product.ratingsAverage ?? product.ratings?.average ?? 0)) ? '#F59E0B' : 'transparent'} 
                   stroke="#F59E0B" 
                   style={{ display: 'inline' }}
                 />
               ))}
             </div>
             <span className="rating-count">
-              {product.ratings?.average?.toFixed(1) || '0.0'} ({product.ratings?.count || 0} reviews)
+              {Number(product.ratingsAverage ?? product.ratings?.average ?? 0).toFixed(1)} ({product.ratingsCount ?? product.ratings?.count ?? 0} reviews)
             </span>
           </div>
 
