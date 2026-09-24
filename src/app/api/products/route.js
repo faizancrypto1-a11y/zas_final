@@ -8,6 +8,11 @@ import {
   buildProductSort,
   CACHE_TAGS,
 } from 'src/lib/storeData';
+import {
+  calculateDiscountedPrice,
+  hasPricedVariants,
+  getProductPricingSummary,
+} from 'src/lib/productPricing';
 
 function readParams(searchParams) {
   return {
@@ -119,8 +124,36 @@ export async function POST(request) {
       );
     }
 
+    const numMrp = Number(mrp);
+    if (isNaN(numMrp) || numMrp < 0) {
+      return NextResponse.json(
+        { success: false, error: 'Valid MRP must be greater than or equal to 0' },
+        { status: 400 }
+      );
+    }
+
+    const discountVal = body.discount !== undefined ? Number(body.discount) : 0;
+    if (isNaN(discountVal) || discountVal < 0 || discountVal > 100) {
+      return NextResponse.json(
+        { success: false, error: 'Discount must be a number between 0 and 100' },
+        { status: 400 }
+      );
+    }
+
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
+
+    // Resolve base price and mrp:
+    let finalMrp = numMrp;
+    let finalPrice = Number(price);
+
+    const tempProd = { variants: body.variants, discount: discountVal, mrp: numMrp, price: finalPrice };
+    if (hasPricedVariants(tempProd)) {
+      const summary = getProductPricingSummary(tempProd);
+      if (summary.displayMrp > 0) finalMrp = summary.displayMrp;
+      if (summary.displayPrice >= 0) finalPrice = summary.displayPrice;
+    } else {
+      finalPrice = calculateDiscountedPrice(finalMrp, discountVal);
+    }
 
     const existingSlug = await prisma.product.findUnique({ where: { slug } });
     const finalSlug = existingSlug ? `${slug}-${Date.now()}` : slug;
@@ -128,7 +161,9 @@ export async function POST(request) {
     const productData = {
       ...body,
       slug: finalSlug,
-      discount
+      mrp: finalMrp,
+      price: finalPrice,
+      discount: discountVal
     };
     
     // In Prisma, we might need to be careful if body has extra fields not in schema, 

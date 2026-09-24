@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from 'src/lib/prisma';
 import { getAuthUser } from 'src/lib/auth';
 import { checkRateLimit } from 'src/lib/rateLimit';
+import { resolveAuthoritativeItemPricing } from 'src/lib/productPricing';
 
 export async function GET(request) {
   try {
@@ -112,7 +113,16 @@ export async function POST(request) {
         );
       }
 
-      const itemPrice = item.price != null ? item.price : product.price;
+      // Authoritatively resolve variant pricing on the server
+      const pricingResult = resolveAuthoritativeItemPricing(product, item.selectedVariant);
+      if (!pricingResult.success) {
+        return NextResponse.json(
+          { success: false, error: pricingResult.error || 'Selected product variant is no longer available.' },
+          { status: 400 }
+        );
+      }
+
+      const itemPrice = pricingResult.price;
       const itemSubtotal = itemPrice * item.quantity;
       subtotal += itemSubtotal;
 
@@ -129,7 +139,7 @@ export async function POST(request) {
         image: firstImage,
         price: itemPrice,
         quantity: item.quantity,
-        selectedVariant: item.selectedVariant || {}
+        selectedVariant: pricingResult.selectedVariant || {}
       });
     }
 

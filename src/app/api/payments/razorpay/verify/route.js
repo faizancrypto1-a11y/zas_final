@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from 'src/lib/prisma';
 import crypto from 'crypto';
+import { resolveAuthoritativeItemPricing } from 'src/lib/productPricing';
 
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
@@ -126,7 +127,16 @@ export async function POST(request) {
         );
       }
 
-      const itemPrice = item.price != null ? item.price : product.price;
+      // Authoritatively resolve variant pricing on the server
+      const pricingResult = resolveAuthoritativeItemPricing(product, item.selectedVariant);
+      if (!pricingResult.success) {
+        return NextResponse.json(
+          { success: false, error: pricingResult.error || `Selected product variant is no longer available for '${product.name}'.` },
+          { status: 400 }
+        );
+      }
+
+      const itemPrice = pricingResult.price;
       const itemSubtotal = itemPrice * item.quantity;
       subtotal += itemSubtotal;
 
@@ -142,7 +152,7 @@ export async function POST(request) {
         image: firstImage,
         price: itemPrice,
         quantity: item.quantity,
-        selectedVariant: item.selectedVariant || {}
+        selectedVariant: pricingResult.selectedVariant || {}
       });
     }
 
@@ -172,6 +182,16 @@ export async function POST(request) {
     // Step 7: Compute shipping server-side
     const shippingPrice = subtotal >= settings.freeShippingMinAmount ? 0 : settings.shippingCharges;
     const totalAmount = subtotal - discountAmount + shippingPrice;
+
+    // Verify payment amount matches authoritative calculated amount
+    const expectedAmountInPaise = Math.round(totalAmount * 100);
+    if (paymentDetails && paymentDetails.amount !== expectedAmountInPaise) {
+      console.error(`Razorpay payment amount mismatch: expected ${expectedAmountInPaise} paise, but received ${paymentDetails.amount} paise`);
+      return NextResponse.json(
+        { success: false, error: 'Payment amount mismatch. Please contact support.' },
+        { status: 400 }
+      );
+    }
 
     // Step 8: Generate order ID
     const cryptoLib = require('crypto');

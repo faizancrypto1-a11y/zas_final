@@ -10,6 +10,7 @@ import React, {
   useMemo,
 } from 'react';
 import Toast from 'src/components/Toast';
+import { areVariantsEqual, getCartItemKey } from 'src/lib/productPricing';
 
 // Split into focused contexts so a change in one area only re-renders the
 // components that actually subscribe to it. In particular, search state lives in
@@ -185,11 +186,13 @@ export function StoreProvider({ children }) {
     toastTimers.current[id] = setTimeout(() => dismissToast(id), duration);
   }, [dismissToast]);
 
-  const showCartToast = useCallback((product, alreadyInCart) => {
+  const showCartToast = useCallback((product, alreadyInCart, selectedVariant = {}) => {
     const image =
       Array.isArray(product.images) && product.images.length > 0
         ? product.images[0]
         : null;
+
+    const dedupeKey = `cart-${getCartItemKey(product.id || product._id, selectedVariant)}`;
 
     showToast({
       type: alreadyInCart ? 'info' : 'success',
@@ -198,7 +201,7 @@ export function StoreProvider({ children }) {
         : 'Product added to cart successfully',
       name: product.name,
       image,
-      dedupeKey: `cart-${product.id || product._id}`,
+      dedupeKey,
       duration: 3500,
       action: { label: 'View Cart', href: '/cart' },
     });
@@ -234,7 +237,7 @@ export function StoreProvider({ children }) {
       const alreadyInCart = cartRef.current.some(
         (item) =>
           (item.product?.id || item.product?._id) === productId &&
-          JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant)
+          areVariantsEqual(item.selectedVariant, selectedVariant)
       );
 
       setCart((prevCart) => {
@@ -242,7 +245,7 @@ export function StoreProvider({ children }) {
         const existingIndex = prevCart.findIndex(
           (item) =>
             (item.product?.id || item.product?._id) === productId &&
-            JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant)
+            areVariantsEqual(item.selectedVariant, selectedVariant)
         );
 
         if (existingIndex > -1) {
@@ -257,7 +260,7 @@ export function StoreProvider({ children }) {
         }
       });
 
-      if (!silent) showCartToast(product, alreadyInCart);
+      if (!silent) showCartToast(product, alreadyInCart, selectedVariant);
       return { success: true, alreadyInCart };
     } catch (err) {
       console.log('Error adding to cart:', err);
@@ -278,7 +281,7 @@ export function StoreProvider({ children }) {
       prevCart.filter(
         (item) =>
           !((item.product?.id || item.product?._id) === productId &&
-            JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant))
+            areVariantsEqual(item.selectedVariant, selectedVariant))
       )
     );
   }, []);
@@ -292,7 +295,7 @@ export function StoreProvider({ children }) {
       return prevCart.map((item) => {
         if (
           (item.product?.id || item.product?._id) === productId &&
-          JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant)
+          areVariantsEqual(item.selectedVariant, selectedVariant)
         ) {
           return { ...item, quantity: qty };
         }

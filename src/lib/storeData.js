@@ -10,7 +10,7 @@ export const CACHE_TAGS = {
 // Compact projection fields for product cards
 export const PRODUCT_CARD_FIELDS = {
   id: true, name: true, brand: true, slug: true, price: true, mrp: true, discount: true, stock: true,
-  ratingsAverage: true, category: true, subcategory: true, images: true,
+  ratingsAverage: true, category: true, subcategory: true, images: true, variants: true,
   isBestSeller: true, isNewArrival: true, isFeatured: true, createdAt: true,
 };
 
@@ -133,52 +133,57 @@ export async function getHomeProducts() {
 
 export const getHomeSections = unstable_cache(
   async () => {
-    const [bestSellers, newArrivals, popularProducts, categories] = await Promise.all([
-      prisma.product.findMany({
-        where: { isActive: true, isBestSeller: true },
-        select: PRODUCT_CARD_FIELDS,
-        orderBy: { createdAt: 'desc' },
-        take: HOME_SECTION_SIZE
-      }),
-      prisma.product.findMany({
-        where: { isActive: true, isNewArrival: true },
-        select: PRODUCT_CARD_FIELDS,
-        orderBy: { createdAt: 'desc' },
-        take: HOME_SECTION_SIZE
-      }),
-      prisma.product.findMany({
-        where: { isActive: true, ratingsAverage: { gte: 4.5 } },
-        select: PRODUCT_CARD_FIELDS,
-        orderBy: { createdAt: 'desc' },
-        take: HOME_SECTION_SIZE
-      }),
-      prisma.category.findMany({
-        where: { isActive: true },
-        orderBy: { displayOrder: 'asc' }
-      })
-    ]);
+    try {
+      const [bestSellers, newArrivals, popularProducts, categories] = await Promise.all([
+        prisma.product.findMany({
+          where: { isActive: true, isBestSeller: true },
+          select: PRODUCT_CARD_FIELDS,
+          orderBy: { createdAt: 'desc' },
+          take: HOME_SECTION_SIZE
+        }),
+        prisma.product.findMany({
+          where: { isActive: true, isNewArrival: true },
+          select: PRODUCT_CARD_FIELDS,
+          orderBy: { createdAt: 'desc' },
+          take: HOME_SECTION_SIZE
+        }),
+        prisma.product.findMany({
+          where: { isActive: true, ratingsAverage: { gte: 4.5 } },
+          select: PRODUCT_CARD_FIELDS,
+          orderBy: { createdAt: 'desc' },
+          take: HOME_SECTION_SIZE
+        }),
+        prisma.category.findMany({
+          where: { isActive: true },
+          orderBy: { displayOrder: 'asc' }
+        })
+      ]);
 
-    // For newest 4 products per category
-    const categoryRows = [];
-    for (const cat of categories) {
-      const catProducts = await prisma.product.findMany({
-        where: { isActive: true, category: cat.slug },
-        select: PRODUCT_CARD_FIELDS,
-        orderBy: { createdAt: 'desc' },
-        take: HOME_SECTION_SIZE
-      });
-      if (catProducts.length > 0) {
-        categoryRows.push({
-          id: cat.id,
-          name: cat.name,
-          slug: cat.slug,
-          products: catProducts
+      // For newest 4 products per category
+      const categoryRows = [];
+      for (const cat of categories) {
+        const catProducts = await prisma.product.findMany({
+          where: { isActive: true, category: cat.slug },
+          select: PRODUCT_CARD_FIELDS,
+          orderBy: { createdAt: 'desc' },
+          take: HOME_SECTION_SIZE
         });
+        if (catProducts.length > 0) {
+          categoryRows.push({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            products: catProducts
+          });
+        }
       }
-    }
 
-    const sections = { popularProducts, newArrivals, bestSellers, categoryRows };
-    return JSON.parse(JSON.stringify(sections));
+      const sections = { popularProducts, newArrivals, bestSellers, categoryRows };
+      return JSON.parse(JSON.stringify(sections));
+    } catch (err) {
+      console.error('Failed to load home sections from DB:', err.message);
+      return { popularProducts: [], newArrivals: [], bestSellers: [], categoryRows: [] };
+    }
   },
   ['home-sections-v1'],
   { tags: [CACHE_TAGS.products, CACHE_TAGS.categories], revalidate: 60 }
@@ -186,11 +191,16 @@ export const getHomeSections = unstable_cache(
 
 export const getPublicCategories = unstable_cache(
   async () => {
-    const categories = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: { displayOrder: 'asc' }
-    });
-    return JSON.parse(JSON.stringify(categories));
+    try {
+      const categories = await prisma.category.findMany({
+        where: { isActive: true },
+        orderBy: { displayOrder: 'asc' }
+      });
+      return JSON.parse(JSON.stringify(categories));
+    } catch (err) {
+      console.error('Failed to load categories from DB:', err.message);
+      return [];
+    }
   },
   ['public-categories-v1'],
   { tags: [CACHE_TAGS.categories], revalidate: 300 }
@@ -198,8 +208,13 @@ export const getPublicCategories = unstable_cache(
 
 export const getPublicSettings = unstable_cache(
   async () => {
-    const settings = await prisma.setting.findFirst();
-    return settings ? JSON.parse(JSON.stringify(settings)) : null;
+    try {
+      const settings = await prisma.setting.findFirst();
+      return settings ? JSON.parse(JSON.stringify(settings)) : null;
+    } catch (err) {
+      console.error('Failed to load settings from DB:', err.message);
+      return null;
+    }
   },
   ['public-settings-v1'],
   { tags: [CACHE_TAGS.settings], revalidate: 300 }

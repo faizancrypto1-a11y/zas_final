@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from 'src/lib/prisma';
+import { resolveAuthoritativeItemPricing } from 'src/lib/productPricing';
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -67,7 +68,16 @@ export async function POST(request) {
         );
       }
 
-      const itemPrice = item.price != null ? item.price : product.price;
+      // Authoritatively resolve variant pricing on the server
+      const pricingResult = resolveAuthoritativeItemPricing(product, item.selectedVariant);
+      if (!pricingResult.success) {
+        return NextResponse.json(
+          { success: false, error: pricingResult.error || 'Selected product variant is no longer available.' },
+          { status: 400 }
+        );
+      }
+
+      const itemPrice = pricingResult.price;
       const itemSubtotal = itemPrice * item.quantity;
       subtotal += itemSubtotal;
 
@@ -84,7 +94,7 @@ export async function POST(request) {
         image: firstImage,
         price: itemPrice,
         quantity: item.quantity,
-        selectedVariant: item.selectedVariant || {}
+        selectedVariant: pricingResult.selectedVariant || {}
       });
     }
 

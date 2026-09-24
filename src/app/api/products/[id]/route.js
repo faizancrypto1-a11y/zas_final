@@ -4,6 +4,11 @@ import { prisma } from 'src/lib/prisma';
 import { verifyAdmin } from 'src/lib/auth';
 import { CACHE_TAGS } from 'src/lib/storeData';
 import { deleteImage } from 'src/lib/storage';
+import {
+  calculateDiscountedPrice,
+  hasPricedVariants,
+  getProductPricingSummary,
+} from 'src/lib/productPricing';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -67,11 +72,42 @@ export async function PUT(request, { params }) {
       );
     }
 
-    if (body.price !== undefined || body.mrp !== undefined) {
-      const finalPrice = body.price !== undefined ? body.price : product.price;
-      const finalMrp = body.mrp !== undefined ? body.mrp : product.mrp;
-      body.discount = finalMrp > finalPrice ? Math.round(((finalMrp - finalPrice) / finalMrp) * 100) : 0;
+    let finalDiscount = product.discount || 0;
+    if (body.discount !== undefined) {
+      const parsedDiscount = Number(body.discount);
+      if (isNaN(parsedDiscount) || parsedDiscount < 0 || parsedDiscount > 100) {
+        return NextResponse.json(
+          { success: false, error: 'Discount must be a number between 0 and 100' },
+          { status: 400 }
+        );
+      }
+      finalDiscount = parsedDiscount;
     }
+
+    const rawMrp = body.mrp !== undefined ? Number(body.mrp) : product.mrp;
+    if (isNaN(rawMrp) || rawMrp < 0) {
+      return NextResponse.json(
+        { success: false, error: 'Valid MRP must be greater than or equal to 0' },
+        { status: 400 }
+      );
+    }
+
+    const currentVariants = body.variants !== undefined ? body.variants : product.variants;
+    let finalMrp = rawMrp;
+    let finalPrice = body.price !== undefined ? Number(body.price) : product.price;
+
+    const tempProd = { variants: currentVariants, discount: finalDiscount, mrp: rawMrp, price: finalPrice };
+    if (hasPricedVariants(tempProd)) {
+      const summary = getProductPricingSummary(tempProd);
+      if (summary.displayMrp > 0) finalMrp = summary.displayMrp;
+      if (summary.displayPrice >= 0) finalPrice = summary.displayPrice;
+    } else {
+      finalPrice = calculateDiscountedPrice(finalMrp, finalDiscount);
+    }
+
+    body.discount = finalDiscount;
+    body.mrp = finalMrp;
+    body.price = finalPrice;
 
     if (body.name) {
       const newSlug = body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');

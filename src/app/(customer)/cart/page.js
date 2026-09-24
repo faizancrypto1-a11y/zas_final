@@ -6,6 +6,7 @@ import { ShoppingBag, Trash2, Heart, ArrowRight, ShieldCheck, Ticket } from 'luc
 import { useStore } from 'src/context/StoreContext';
 import InlineSVG from 'src/components/InlineSVG';
 import { formatINR } from 'src/lib/currency';
+import { getVariantPricing, extractCleanAttributes, getCartItemKey } from 'src/lib/productPricing';
 
 const CartPage = () => {
   const { 
