@@ -368,3 +368,338 @@
     background-color: white !important;
   }
 }
+
+/* ==========================================================================
+   DYNAMIC PRODUCT VARIANTS & PRICING (ADMIN MODAL)
+   ========================================================================== */
+.admin-variant-section {
+  grid-column: span 2;
+  background-color: var(--bg-dark);
+  border: 1px solid var(--bg-dark-border);
+  border-radius: var(--border-radius-md);
+  padding: 18px 20px;
+  margin: 10px 0;
+}
+
+.admin-variant-header-wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-variant-title-box h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-variant-title-box h4 svg {
+  color: var(--primary-light);
+}
+
+.admin-variant-title-box p {
+  margin: 4px 0 0 0;
+  font-size: 0.78rem;
+  color: var(--text-light-muted);
+  line-height: 1.4;
+}
+
+.admin-variant-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-variant-quick-btn {
+  background-color: var(--bg-dark-card);
+  border: 1px solid var(--bg-dark-border);
+  color: var(--text-light);
+  padding: 5px 10px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-variant-quick-btn:hover {
+  border-color: var(--primary-light);
+  color: white;
+  background-color: rgba(99, 114, 242, 0.15);
+}
+
+.admin-variant-custom-btn {
+  background-color: var(--primary);
+  border: 1px solid var(--primary-light);
+  color: white;
+  padding: 5px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.admin-variant-custom-btn:hover {
+  background-color: var(--primary-dark);
+  border-color: var(--primary);
+  color: white;
+}
+
+.admin-variant-empty {
+  padding: 18px;
+  background-color: rgba(21, 30, 47, 0.6);
+  border-radius: var(--border-radius-sm);
+  border: 1px dashed var(--bg-dark-border);
+  text-align: center;
+  color: var(--text-light-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.admin-variant-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-variant-option-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 36px;
+  gap: 10px;
+  align-items: center;
+  background-color: var(--bg-dark-card);
+  padding: 10px 12px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--bg-dark-border);
+  transition: var(--transition);
+}
+
+.admin-variant-option-row:hover {
+  border-color: rgba(99, 114, 242, 0.4);
+}
+
+.admin-variant-delete-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-light-muted);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.admin-variant-delete-btn:hover {
+  color: var(--danger);
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Combinations container */
+.admin-variant-combinations {
+  margin-top: 14px;
+  border: 1px solid var(--bg-dark-border);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  background-color: var(--bg-dark-card);
+}
+
+.admin-variant-combinations-header {
+  padding: 12px 16px;
+  background-color: var(--bg-dark);
+  border-bottom: 1px solid var(--bg-dark-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-variant-comb-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: white;
+}
+
+.admin-variant-comb-desc {
+  font-size: 0.78rem;
+  color: var(--text-light-muted);
+  margin-left: 8px;
+}
+
+.admin-variant-bulk-mrp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-variant-bulk-input {
+  width: 130px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  background-color: var(--bg-dark-card);
+  border: 1px solid var(--bg-dark-border);
+  border-radius: var(--border-radius-sm);
+  color: white;
+}
+
+.admin-variant-bulk-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.admin-variant-bulk-btn {
+  background-color: var(--bg-dark-card);
+  border: 1px solid var(--bg-dark-border);
+  color: var(--text-light);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.admin-variant-bulk-btn:hover {
+  border-color: var(--primary-light);
+  color: white;
+  background-color: rgba(99, 114, 242, 0.15);
+}
+
+.admin-variant-table-wrap {
+  max-height: 290px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.admin-variant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  text-align: left;
+}
+
+.admin-variant-table thead tr {
+  background-color: var(--bg-dark);
+  border-bottom: 1px solid var(--bg-dark-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.admin-variant-table th {
+  padding: 10px 14px;
+  font-weight: 600;
+  color: var(--text-light-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--bg-dark-border);
+}
+
+.admin-variant-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bg-dark-border);
+  color: var(--text-light);
+}
+
+.admin-variant-table tbody tr {
+  background-color: var(--bg-dark-card);
+  transition: var(--transition);
+}
+
+.admin-variant-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.admin-variant-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-variant-name {
+  font-weight: 500;
+  color: white;
+}
+
+.admin-variant-discount {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.admin-variant-price {
+  font-weight: 700;
+  color: var(--success);
+}
+
+/* Responsive variants styling */
+@media (max-width: 768px) {
+  .admin-variant-section {
+    padding: 14px;
+  }
+
+  .admin-variant-header-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-variant-toolbar {
+    width: 100%;
+  }
+
+  .admin-variant-option-row {
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  .admin-variant-option-row input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .admin-variant-option-row input:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .admin-variant-delete-btn {
+    grid-column: 2;
+    justify-self: center;
+  }
+
+  .admin-variant-combinations-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-variant-bulk-mrp {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-variant-bulk-input {
+    flex: 1;
+    width: auto;
+  }
+
+  .admin-variant-table {
+    min-width: 480px;
+  }
+}
+

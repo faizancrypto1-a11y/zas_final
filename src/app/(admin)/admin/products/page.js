@@ -169,10 +169,12 @@ const ProductsManagement = () => {
   }, [search, catFilter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAdminCategories();
   }, [fetchAdminCategories]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAdminProducts();
   }, [fetchAdminProducts]);
 
@@ -800,100 +802,81 @@ const ProductsManagement = () => {
                   </div>
 
                   {/* Modern Dynamic Variant Options & Combinations */}
-                  <div className="admin-form-group" style={{ gridColumn: 'span 2', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '8px' }}>
-                      <div>
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Layers size={16} /> Dynamic Product Variants & Pricing
+                  <div className="admin-variant-section">
+                    <div className="admin-variant-header-wrap">
+                      <div className="admin-variant-title-box">
+                        <h4>
+                          <Layers size={17} /> Dynamic Product Variants & Pricing
                         </h4>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-light-muted)' }}>
+                        <p>
                           Configure product options (e.g. Size, Batting Hand) with comma-separated values. Combinations are generated automatically.
                         </p>
                       </div>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <div className="admin-variant-toolbar">
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
+                          className="admin-variant-quick-btn"
                           onClick={() => handleAddVariantOption('Size', 'size')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
                           + Size
                         </button>
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
+                          className="admin-variant-quick-btn"
                           onClick={() => handleAddVariantOption('Batting Hand', 'handOrientation')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
                           + Hand
                         </button>
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
+                          className="admin-variant-quick-btn"
                           onClick={() => handleAddVariantOption('Handle Type', 'handle')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
                           + Handle
                         </button>
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
+                          className="admin-variant-quick-btn"
                           onClick={() => handleAddVariantOption('Color', 'color')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
                           + Color
                         </button>
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
+                          className="admin-variant-quick-btn"
                           onClick={() => handleAddVariantOption('Wood Type', 'batWoodType')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
                           + Wood
                         </button>
                         <button
                           type="button"
-                          className="btn btn-secondary btn-sm"
+                          className="admin-variant-quick-btn"
                           onClick={() => handleAddVariantOption('Weight', 'weight')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
                           + Weight
                         </button>
                         <button
                           type="button"
-                          className="btn btn-primary btn-sm"
+                          className="admin-variant-custom-btn"
                           onClick={() => handleAddVariantOption('', '')}
-                          style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                         >
-                          <Plus size={12} /> Custom Option
+                          <Plus size={13} /> Custom Option
                         </button>
                       </div>
                     </div>
 
                     {variantOptions.length === 0 ? (
-                      <div style={{ padding: '16px', background: 'var(--bg-light-muted, #f8f9fa)', borderRadius: '6px', border: '1px dashed var(--border-color)', textAlign: 'center', color: 'var(--text-light-muted)', fontSize: '0.82rem' }}>
+                      <div className="admin-variant-empty">
                         No variant options defined. Click any button above to add Size, Hand, Wood, or Custom options. If none are added, the product sells as a single standard item.
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '1rem' }}>
+                      <div className="admin-variant-options-list">
                         {variantOptions.map((opt) => (
-                          <div
-                            key={opt.id}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '180px 1fr 36px',
-                              gap: '10px',
-                              alignItems: 'center',
-                              background: 'var(--bg-light-muted, #f8f9fa)',
-                              padding: '8px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid var(--border-color)'
-                            }}
-                          >
+                          <div key={opt.id} className="admin-variant-option-row">
                             <input
                               type="text"
                               className="admin-form-control"
-                              style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                              style={{ padding: '7px 10px', fontSize: '0.84rem' }}
                               placeholder="Option Name (e.g. Size)"
                               value={opt.label}
                               onChange={(e) => handleOptionChange(opt.id, 'label', e.target.value)}
@@ -901,7 +884,7 @@ const ProductsManagement = () => {
                             <input
                               type="text"
                               className="admin-form-control"
-                              style={{ padding: '6px 10px', fontSize: '0.82rem' }}
+                              style={{ padding: '7px 10px', fontSize: '0.84rem' }}
                               placeholder="Comma-separated values (e.g. Harrow, 5, 6 or Red, Blue)"
                               value={opt.valuesInput}
                               onChange={(e) => handleOptionChange(opt.id, 'valuesInput', e.target.value)}
@@ -909,8 +892,7 @@ const ProductsManagement = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveVariantOption(opt.id)}
-                              className="btn btn-icon btn-sm text-danger"
-                              style={{ padding: '6px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                              className="admin-variant-delete-btn"
                               title="Remove option"
                             >
                               <Trash2 size={16} />
@@ -922,54 +904,43 @@ const ProductsManagement = () => {
 
                     {/* Combinations MRP Table */}
                     {combinations.length > 0 && (
-                      <div style={{ marginTop: '1rem', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
-                        <div style={{
-                          padding: '10px 12px',
-                          background: 'var(--bg-light-muted, #f1f3f5)',
-                          borderBottom: '1px solid var(--border-color)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          flexWrap: 'wrap',
-                          gap: '10px'
-                        }}>
+                      <div className="admin-variant-combinations">
+                        <div className="admin-variant-combinations-header">
                           <div>
-                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                            <span className="admin-variant-comb-title">
                               Variant Combinations ({combinations.length})
                             </span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-light-muted)', marginLeft: '8px' }}>
+                            <span className="admin-variant-comb-desc">
                               Set MRP for each variant. Selling price auto-calculates with {Number(discount) || 0}% discount.
                             </span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div className="admin-variant-bulk-mrp">
                             <input
                               type="number"
                               min="0"
                               placeholder="Bulk MRP (₹)"
                               value={bulkMrpInput}
                               onChange={(e) => setBulkMrpInput(e.target.value)}
-                              className="admin-form-control"
-                              style={{ width: '130px', padding: '4px 8px', fontSize: '0.8rem' }}
+                              className="admin-variant-bulk-input"
                             />
                             <button
                               type="button"
-                              className="btn btn-secondary btn-sm"
+                              className="admin-variant-bulk-btn"
                               onClick={handleBulkApplyMrp}
-                              style={{ fontSize: '0.78rem', padding: '4px 10px' }}
                             >
                               Apply to All
                             </button>
                           </div>
                         </div>
 
-                        <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                        <div className="admin-variant-table-wrap">
+                          <table className="admin-variant-table">
                             <thead>
-                              <tr style={{ background: 'var(--bg-light, #fafafa)', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                                <th style={{ padding: '8px 12px', fontWeight: 600 }}>Combination</th>
-                                <th style={{ padding: '8px 12px', fontWeight: 600, width: '140px' }}>MRP (₹)</th>
-                                <th style={{ padding: '8px 12px', fontWeight: 600, width: '100px' }}>Discount</th>
-                                <th style={{ padding: '8px 12px', fontWeight: 600, width: '140px' }}>Selling Price</th>
+                              <tr>
+                                <th>Combination</th>
+                                <th style={{ width: '140px' }}>MRP (₹)</th>
+                                <th style={{ width: '100px' }}>Discount</th>
+                                <th style={{ width: '140px' }}>Selling Price</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -982,26 +953,26 @@ const ProductsManagement = () => {
                                   .join(' / ');
 
                                 return (
-                                  <tr key={comb.id} style={{ borderBottom: '1px solid var(--border-color, #eee)' }}>
-                                    <td style={{ padding: '8px 12px', fontWeight: 500 }}>
+                                  <tr key={comb.id}>
+                                    <td className="admin-variant-name">
                                       {attrString || comb.id}
                                     </td>
-                                    <td style={{ padding: '8px 12px' }}>
+                                    <td>
                                       <input
                                         type="number"
                                         min="0"
                                         className="admin-form-control"
-                                        style={{ padding: '4px 8px', fontSize: '0.82rem' }}
+                                        style={{ padding: '6px 10px', fontSize: '0.82rem' }}
                                         value={comb.mrp ?? ''}
                                         onChange={(e) => handleCombinationMrpChange(comb.id, e.target.value)}
                                         placeholder="0"
                                         required
                                       />
                                     </td>
-                                    <td style={{ padding: '8px 12px', color: 'var(--accent, #e65100)', fontWeight: 600 }}>
+                                    <td className="admin-variant-discount">
                                       {combDiscount > 0 ? `${combDiscount}% off` : '0%'}
                                     </td>
-                                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--success, #2e7d32)' }}>
+                                    <td className="admin-variant-price">
                                       {formatINR(combSellingPrice)}
                                     </td>
                                   </tr>
