@@ -49,7 +49,7 @@ const AdminSidebar = () => {
       {/* Sidebar header */}
       <div className="admin-sidebar-header">
         <Link href="/admin" className="admin-logo">
-          APEX<span>PANEL</span>
+          ZAS<span>ADMIN</span>
         </Link>
         <Link href="/" style={{ color: 'var(--text-light-muted)' }} title="Go to website">
           <ChevronLeft size={16} />
